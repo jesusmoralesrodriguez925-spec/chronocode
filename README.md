@@ -1,4 +1,3 @@
-```markdown
 # ChronoCode
 
 ![ChronoCode Terminal](./assets/screenshot.jpg)
