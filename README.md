@@ -1,5 +1,9 @@
 # ChronoCode
 
+
+![Screenshot_20261114-204339_Termux.jpg](https://github.com/user-attachments/assets/314b91e3-b595-4271-b037-7ec99d1a4703)
+
+
 **ES:** Agente de IA de código abierto para tu terminal. Sin servidores, sin cuentas, sin pagos: tú pones tu propia API Key (BYOK) y todo corre en tu equipo.
 **EN:** Open-source AI coding agent for your terminal. No servers, no accounts, no payments: you bring your own API key (BYOK) and everything runs on your machine.
 
