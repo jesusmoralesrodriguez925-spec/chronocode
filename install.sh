@@ -26,9 +26,9 @@ PY=python3
 command -v python3 >/dev/null 2>&1 || PY=python
 
 echo "==> Instalando dependencias de Python..."
-$PY -m pip install --upgrade requests python-dotenv 2>/dev/null \
-  || $PY -m pip install --user --upgrade requests python-dotenv 2>/dev/null \
-  || $PY -m pip install --user --break-system-packages --upgrade requests python-dotenv
+$PY -m pip install --upgrade requests python-dotenv rich 2>/dev/null \
+  || $PY -m pip install --user --upgrade requests python-dotenv rich 2>/dev/null \
+  || $PY -m pip install --user --break-system-packages --upgrade requests python-dotenv rich
 
 touch .gitignore
 grep -qxF ".env" .gitignore || echo ".env" >> .gitignore

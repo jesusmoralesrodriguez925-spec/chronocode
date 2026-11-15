@@ -1,5 +1,7 @@
 # ChronoCode
 
+<img src="logo.svg" width="120" alt="ChronoCode">
+
 ![ChronoCode Terminal](./assets/screenshot.jpg)
 
 **ES:** Agente de IA de código abierto para tu terminal. Sin servidores, sin cuentas, sin pagos: tú pones tu propia API Key (BYOK) y todo corre en tu equipo.
@@ -30,7 +32,7 @@ python chronocode.py
 Instalación manual
 
 ```bash
-pip install requests python-dotenv
+pip install requests python-dotenv rich
 python chronocode.py
 ```
 
@@ -55,7 +57,6 @@ Comando Acción
 /file RUTA Cambia el archivo de contexto
 /run CMD o !CMD Ejecuta un comando (pide confirmación)
 /key Añade o cambia una API Key
-/stream Activa/desactiva el streaming
 /clear Borra el historial
 /exit Sale
 

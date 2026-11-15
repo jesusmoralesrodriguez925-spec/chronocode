@@ -3,11 +3,11 @@
 """
 ChronoCode - Agente de programación para la terminal. Open Source, BYOK.
 Sin backend, sin base de datos, sin servidores propios.
-Dependencias: librería estándar + requests + python-dotenv.
+Dependencias: requests, python-dotenv, rich.
 Proveedores: Groq, OpenRouter, OpenAI, Anthropic, Gemini (tu propia API Key).
 
 Uso:  python chronocode.py [archivo]
-Comandos: /file /run /key /stream /clear /help /exit   (atajo: !cmd)
+Comandos: /file /run /key /clear /help /exit   (atajo: !cmd)
 """
 import os
 import re
@@ -30,6 +30,17 @@ try:
     from dotenv import load_dotenv
 except ImportError:
     print("Falta 'python-dotenv'. Instálalo con:  pip install python-dotenv")
+    sys.exit(1)
+
+try:
+    from rich.console import Console
+    from rich.markdown import Markdown
+    from rich.markup import escape
+    from rich.panel import Panel
+    from rich.syntax import Syntax
+    from rich.text import Text
+except ImportError:
+    print("Falta 'rich'. Instálalo con:  pip install rich")
     sys.exit(1)
 
 try:
@@ -73,7 +84,6 @@ GEMINI_URL = ("https://generativelanguage.googleapis.com/v1beta/models/"
 # Orden por defecto. Cámbialo con CHRONO_PROVIDER_ORDER="gemini,groq" en el .env
 DEFAULT_ORDER = ["Groq", "OpenRouter", "OpenAI", "Anthropic", "Gemini"]
 
-STREAM = True
 CONNECT_TIMEOUT = int(os.getenv("CHRONO_CONNECT_TIMEOUT", "20"))   # segundos para conectar
 READ_TIMEOUT = int(os.getenv("CHRONO_READ_TIMEOUT", "120"))        # segundos esperando datos
 MAX_RETRIES = 3             # reintentos por modelo (red lenta, timeouts, 5xx)
@@ -100,30 +110,35 @@ Reglas:
 """
 
 # =====================================================================
-#  TERMINAL
+#  TERMINAL (rich)
 # =====================================================================
-if os.name == "nt":
-    os.system("")
-
-USE_COLOR = sys.stdout.isatty()
+console = Console(highlight=False)   # sin resaltado automático de números/rutas
 
 
-def c(text, code):
-    return f"\033[{code}m{text}\033[0m" if USE_COLOR else text
+def info(m):
+    console.print(Text(m, style="cyan"))
 
 
-def info(m): print(c(m, "36"))
-def warn(m): print(c(m, "33"))
-def err(m): print(c(m, "31"))
-def ok(m): print(c(m, "32"))
+def warn(m):
+    console.print(Text(m, style="yellow"))
+
+
+def err(m):
+    console.print(Panel(Text(m), title="Error", title_align="left",
+                        border_style="red", expand=False))
+
+
+def ok(m):
+    console.print(Panel(Text(m), title="Listo", title_align="left",
+                        border_style="green", expand=False))
 
 
 def ask_yes_no(question, default=False):
     suffix = " [S/n]: " if default else " [s/N]: "
     try:
-        ans = input(c(question, "35") + suffix).strip().lower()
+        ans = console.input(f"[magenta]{escape(question + suffix)}[/]").strip().lower()
     except (EOFError, KeyboardInterrupt):
-        print()
+        console.print()
         return False
     if not ans:
         return default
@@ -200,15 +215,7 @@ class StreamResult:
     def __init__(self, provider=""):
         self.provider = provider
         self.text = ""
-        self.started = False
         self.complete = False
-
-
-def _header_once(res):
-    if not res.started:
-        res.started = True
-        print()
-        print(c(f"ChronoCode [{res.provider}]:", "1;34"))
 
 
 def _err_text(e):
@@ -331,14 +338,14 @@ def available_providers():
 
 # =====================================================================
 #  RED: SSE + manejo de errores y timeouts
+#  (la respuesta se acumula en silencio mientras gira el spinner y se
+#   muestra al final con formato Markdown)
 # =====================================================================
 def _consume_sse(r, res, extract):
-    live = STREAM
     r.encoding = "utf-8"
 
     def fail(reason):
-        if not live:
-            res.text = ""
+        res.text = ""   # nada se mostró: se puede reintentar limpio
         return False, reason, 0
 
     try:
@@ -360,10 +367,6 @@ def _consume_sse(r, res, extract):
                 return fail(f"error del proveedor: {error}")
             if piece:
                 res.text += piece
-                if live:
-                    _header_once(res)
-                    sys.stdout.write(piece)
-                    sys.stdout.flush()
             if done:
                 res.complete = True
     except requests.exceptions.Timeout:
@@ -375,9 +378,6 @@ def _consume_sse(r, res, extract):
 
     if not res.text.strip():
         return False, "respuesta vacía", 0
-    if not live:
-        _header_once(res)
-        print(res.text.strip())
     return True, None, 0
 
 
@@ -428,19 +428,13 @@ def _run_providers(providers, messages):
                 try:
                     success, reason, wait = _http_request(url, headers, payload, extract, res)
                 except KeyboardInterrupt:
-                    print()
                     if res.text:
-                        warn("Respuesta interrumpida.")
+                        warn("Respuesta interrumpida: se conserva lo recibido.")
                         return res
                     warn("Cancelado.")
                     return None
 
                 if success:
-                    print()
-                    return res
-                if res.text:
-                    print()
-                    warn(f"Respuesta cortada ({reason}). Se conserva lo recibido.")
                     return res
                 if reason.startswith("__skip_provider__"):
                     warn(f"[{prov['name']}] {reason.split(':', 1)[1]}")
@@ -484,13 +478,41 @@ def get_llm_response(prompt):
     STATE.history.append({"role": "user", "content": prompt})
     trim_history()
     messages = [{"role": "system", "content": build_system_message()}] + STATE.history
-    info("ChronoCode pensando... (Ctrl+C para cortar)")
-    res = _run_providers(providers, messages)
+    with console.status("ChronoCode pensando... (Ctrl+C para cortar)", spinner="dots"):
+        res = _run_providers(providers, messages)
     if res is None:
         STATE.history.pop()
         return None
     STATE.history.append({"role": "assistant", "content": res.text})
     return res
+
+
+# =====================================================================
+#  RESPUESTA EN MARKDOWN CON RESALTADO DE SINTAXIS
+# =====================================================================
+EXT_LANG = {
+    "py": "python", "js": "javascript", "ts": "typescript", "json": "json", "html": "html",
+    "css": "css", "sh": "bash", "bash": "bash", "md": "markdown", "yml": "yaml", "yaml": "yaml",
+    "toml": "toml", "txt": "text", "c": "c", "cpp": "cpp", "java": "java", "go": "go",
+    "rs": "rust", "sql": "sql", "xml": "xml", "php": "php", "rb": "ruby",
+}
+FENCE_RE = re.compile(r"^```chronocode:([^\n]*)$", re.MULTILINE)
+
+
+def _md_text(text):
+    """Convierte ```chronocode:ruta.ext en un bloque con lenguaje + nombre de archivo."""
+    def repl(m):
+        path = m.group(1).strip()
+        lang = EXT_LANG.get(Path(path).suffix.lower().lstrip("."), "")
+        return f"**`{path}`**\n\n```{lang}"
+    return FENCE_RE.sub(repl, text)
+
+
+def render_response(res):
+    console.print()
+    console.print(Text.assemble(("ChronoCode ", "bold blue"), (f"[{res.provider}]", "dim")))
+    console.print(Markdown(_md_text(res.text), code_theme="monokai"))
+    console.print()
 
 
 # =====================================================================
@@ -517,13 +539,7 @@ def show_diff(path, new_content):
         if not diff:
             warn("(sin cambios respecto al archivo actual)")
             return False
-        for line in diff[:120]:
-            if line.startswith("+") and not line.startswith("+++"):
-                print(c(line, "32"))
-            elif line.startswith("-") and not line.startswith("---"):
-                print(c(line, "31"))
-            else:
-                print(line)
+        console.print(Syntax("\n".join(diff[:120]), "diff", theme="ansi_dark", word_wrap=True))
         if len(diff) > 120:
             warn(f"... ({len(diff) - 120} líneas más)")
     else:
@@ -551,9 +567,9 @@ def handle_file_block(block):
     path = block["path"] or STATE.current_file
     if not path:
         try:
-            path = input(c("¿En qué archivo guardo este código? (vacío = omitir): ", "35")).strip()
+            path = console.input("[magenta]¿En qué archivo guardo este código? (vacío = omitir): [/]").strip()
         except (EOFError, KeyboardInterrupt):
-            print()
+            console.print()
             return
         if not path:
             return
@@ -660,7 +676,8 @@ def run_command(cmd):
     if problem:
         err(f"Comando bloqueado: {problem}")
         return None
-    print(c(f"Comando propuesto:\n  $ {cmd}", "33"))
+    console.print(Panel(Text(f"$ {cmd}"), title="Comando propuesto", title_align="left",
+                        border_style="yellow", expand=False))
     if not ask_yes_no("¿Ejecutar este comando?"):
         warn("Comando cancelado.")
         return None
@@ -669,8 +686,15 @@ def run_command(cmd):
             argv, shell=False, capture_output=True, text=True,
             encoding="utf-8", errors="replace", timeout=COMMAND_TIMEOUT, cwd=os.getcwd())
         out = (res.stdout or "") + (res.stderr or "")
-        print(out.rstrip() if out.strip() else c("(sin salida)", "90"))
-        (ok if res.returncode == 0 else err)(f"[código de salida: {res.returncode}]")
+        if out.strip():
+            console.print(Panel(Text(out.rstrip()), title="Salida", title_align="left",
+                                border_style="dim"))
+        else:
+            console.print(Text("(sin salida)", style="dim"))
+        if res.returncode == 0:
+            console.print(Text("[código de salida: 0]", style="green"))
+        else:
+            err(f"El comando terminó con código de salida {res.returncode}")
         return f"$ {cmd}\n{out}\n[exit {res.returncode}]"
     except subprocess.TimeoutExpired:
         err(f"El comando superó {COMMAND_TIMEOUT}s y fue detenido.")
@@ -687,6 +711,7 @@ def ask_model(user_text):
     res = get_llm_response(user_text)
     if res is None:
         return
+    render_response(res)
     if not res.complete:
         warn("(Respuesta incompleta: solo se procesan bloques de código completos)")
     for block in extract_blocks(res.text):
@@ -726,11 +751,11 @@ def detectar_proveedor(key):
 
 def pedir_clave():
     """Pide una API Key, detecta el proveedor y la guarda. Devuelve True si se guardó."""
-    print("Pega tu API Key (Gemini, Groq, OpenRouter, OpenAI o Anthropic):")
+    console.print("Pega tu API Key (Gemini, Groq, OpenRouter, OpenAI o Anthropic):")
     try:
-        key = input(c("> ", "1;32")).strip()
+        key = console.input("[bold green]> [/]").strip()
     except (EOFError, KeyboardInterrupt):
-        print()
+        console.print()
         return False
     if not key:
         err("No ingresaste ninguna clave.")
@@ -739,44 +764,69 @@ def pedir_clave():
     if not prov:
         warn("No reconozco el prefijo de esa clave.")
         try:
-            resp = input("¿De qué proveedor es? (gemini/groq/openrouter/openai/anthropic): ").strip().lower()
+            resp = console.input(
+                "[magenta]¿De qué proveedor es? (gemini/groq/openrouter/openai/anthropic): [/]"
+            ).strip().lower()
         except (EOFError, KeyboardInterrupt):
-            print()
+            console.print()
             return False
         prov = next((n for n in KEY_VARS if n.lower() == resp), None)
         if not prov:
             err("Proveedor no válido.")
             return False
     guardar_en_env(KEY_VARS[prov], key)
-    ok(f"Clave de {prov} guardada en {ENV_PATH}\n")
+    ok(f"Clave de {prov} guardada en {ENV_PATH}")
     return True
 
 
 def setup_wizard():
     if available_providers():
         return
-    print(c("=" * 60, "36"))
-    print(c("  ¡Bienvenido a ChronoCode!", "1;36"))
-    print(c("  Agente 100% Open Source. Trae tu propia API Key (BYOK).", "36"))
-    print(c("  Gemini:     https://aistudio.google.com/apikey", "33"))
-    print(c("  Groq:       https://console.groq.com/keys", "33"))
-    print(c("  OpenRouter: https://openrouter.ai/keys", "33"))
-    print(c("=" * 60, "36"))
+    welcome = Text()
+    welcome.append("¡Bienvenido a ChronoCode!\n", style="bold cyan")
+    welcome.append("Agente 100% Open Source. Trae tu propia API Key (BYOK).\n\n")
+    welcome.append("Gemini:     https://aistudio.google.com/apikey\n", style="yellow")
+    welcome.append("Groq:       https://console.groq.com/keys\n", style="yellow")
+    welcome.append("OpenRouter: https://openrouter.ai/keys", style="yellow")
+    console.print(Panel(welcome, border_style="cyan", expand=False))
     if not pedir_clave():
         sys.exit(1)
 
 
+# ---------------------------------------------------------------------
+#  Banner: reloj de arena + nombre (ancho 32, alto 8)
+# ---------------------------------------------------------------------
 def mostrar_banner():
-    cian, verde, reset = "\033[1;36m", "\033[1;32m", "\033[0m"
-    print(f"""
-{cian} ██████╗██╗  ██╗██████╗  ██████╗ ███╗   ██╗ ██████╗
-██╔════╝██║  ██║██╔══██╗██╔═══██╗████╗  ██║██╔═══██╗
-██║     ███████║██████╔╝██║   ██║██╔██╗ ██║██║   ██║
-██║     ██╔══██║██╔══██╗██║   ██║██║╚██╗██║██║   ██║
-╚██████╗██║  ██║██║  ██║╚██████╔╝██║ ╚████║╚██████╔╝
- ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═══╝ ╚═════╝ {reset}
-               {verde}⚡ v1.0 - Terminal AI Agent ⚡{reset}
-""")
+    chrono = [
+        r"  ___ _  _ ___  ___  _  _  ___ ",
+        r" / __| || | _ \/ _ \| \| |/ _ \ ",
+        r"| (__| __ |   / (_) | .` | (_) |",
+        r" \___|_||_|_|_\\___/|_|\_|\___/ ",
+    ]
+    code = [
+        r"  ___ ___  ___  ___ ",
+        r" / __/ _ \|   \| __|",
+        r"| (_| (_) | |) | _| ",
+        r" \___\___/|___/|___|",
+    ]
+    glass = [
+        r"╔═════╗",
+        r" ╲░░░╱ ",
+        r" ╱▓▓▓╲ ",
+        r"╚═════╝",
+    ]
+    banner = Text(no_wrap=True)
+    for line in chrono:
+        banner.append(line.ljust(32) + "\n", style="bold green")
+    for word, cup in zip(code, glass):
+        banner.append(word.ljust(22), style="bold green")
+        banner.append(cup + "\n", style="bold cyan")
+    banner.append("  >_ ", style="bold cyan")
+    banner.append("agente de IA para tu terminal  ", style="white")
+    banner.append("v1.0", style="dim")
+    console.print()
+    console.print(banner, crop=False)
+    console.print()
 
 
 HELP = """Comandos:
@@ -784,7 +834,6 @@ HELP = """Comandos:
   /run CMD     Ejecuta un comando permitido (ls, cat, grep, find, git, python, node, pip)
                Atajo: !CMD. Solo dentro del directorio actual, sin ; & | > < ` $()
   /key         Añade o cambia una API Key
-  /stream      Activa/desactiva el streaming
   /clear       Borra el historial
   /help        Esta ayuda
   /exit        Salir
@@ -792,41 +841,38 @@ Cualquier otro texto se envía a la IA."""
 
 
 def main():
-    global STREAM
     setup_wizard()
     load_dotenv(ENV_PATH, override=True)
 
     mostrar_banner()
-    print(f"Proveedores: {' > '.join(p['name'] for p in available_providers())}  |  "
-          f"Streaming: {'ON' if STREAM else 'OFF'}")
-    print("Escribe /help para ver los comandos.\n")
+    console.print(Text("Proveedores: " + " > ".join(p["name"] for p in available_providers()),
+                       style="dim"))
+    console.print(Text("Escribe /help para ver los comandos.\n", style="dim"))
 
     if len(sys.argv) > 1:
         set_context_file(" ".join(sys.argv[1:]))
 
     while True:
         try:
-            line = input(c("\n> ", "1;32")).strip()
+            line = console.input("\n[bold green]> [/]").strip()
         except EOFError:
-            print()
+            console.print()
             break
         except KeyboardInterrupt:
-            print("\n(Usa /exit para salir)")
+            console.print("\n(Usa /exit para salir)")
             continue
         if not line:
             continue
 
         low = line.lower()
         if low in ("/exit", "/quit", "exit", "salir"):
-            print("¡Hasta luego!")
+            console.print("¡Hasta luego!")
             break
         if low == "/help":
-            print(HELP)
+            console.print(Panel(Text(HELP), title="Ayuda", title_align="left",
+                                border_style="cyan", expand=False))
         elif low == "/key":
             pedir_clave()
-        elif low == "/stream":
-            STREAM = not STREAM
-            ok("Streaming " + ("activado" if STREAM else "desactivado") + ".")
         elif low == "/clear":
             STATE.history.clear()
             ok("Historial borrado.")
@@ -835,7 +881,7 @@ def main():
             if arg:
                 set_context_file(arg)
             else:
-                print(f"Archivo actual: {STATE.current_file or '(ninguno)'}")
+                console.print(Text(f"Archivo actual: {STATE.current_file or '(ninguno)'}"))
         elif low.startswith("/run ") or line.startswith("!"):
             cmd = line[5:] if low.startswith("/run ") else line[1:]
             out = run_command(cmd)
