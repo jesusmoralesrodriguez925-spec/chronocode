@@ -14,6 +14,7 @@ import re
 import sys
 import json
 import time
+import shlex
 import shutil
 import difflib
 import subprocess
@@ -343,7 +344,7 @@ def _consume_sse(r, res, extract):
     try:
         for raw in r.iter_lines(decode_unicode=True):
             if not raw or raw.startswith(":") or not raw.startswith("data:"):
-                continue   # keep-alives (OpenRouter envía ": OPENROUTER PROCESSING") y líneas vacías
+                continue   # keep-alives y líneas vacías
             data = raw[5:].strip()
             if data == "[DONE]":
                 res.complete = True
@@ -556,10 +557,91 @@ def handle_file_block(block):
             return
         if not path:
             return
+    problem = _check_path(path)   # el modelo no puede escribir fuera del directorio de trabajo
+    if problem:
+        err(f"Guardado bloqueado: {problem}")
+        return
     show_diff(path, block["content"])
     if ask_yes_no(f"¿Guardar este código en {path}?"):
         if write_file(path, block["content"]):
             STATE.current_file = path
+
+
+# =====================================================================
+#  SEGURIDAD: ALLOWLIST DE COMANDOS + SANDBOX DE RUTAS
+# =====================================================================
+ALLOWED_COMMANDS = {"ls", "cat", "grep", "find", "git", "python", "python3", "node", "pip", "pip3"}
+
+# "&" y "|" bloquean también && y ||
+DANGEROUS_CHARS = (";", "&", "|", "`", "$(", "${", ">", "<", "\n", "\r")
+
+# Opciones que permiten ejecutar código arbitrario o salir del sandbox
+DENY_FLAGS = {
+    "find": {"-exec", "-execdir", "-ok", "-okdir", "-delete", "-fprint", "-fprintf", "-fls"},
+    "git": {"-c", "-C", "--exec-path", "--upload-pack", "--receive-pack", "--git-dir", "--work-tree"},
+    "python": {"-c"}, "python3": {"-c"},
+    "node": {"-e", "--eval", "-p", "--print"},
+}
+
+# Nombres que nunca se tocan, aunque estén dentro del directorio de trabajo
+SENSITIVE_NAMES = {".ssh", ".aws", ".gnupg", ".env", ".netrc", ".git-credentials"}
+
+
+def _inside(base, path):
+    try:
+        return os.path.commonpath([base, path]) == base
+    except ValueError:   # distintas unidades en Windows
+        return False
+
+
+def _check_path(value):
+    """Devuelve un mensaje de error si la ruta sale del sandbox, o None si es válida."""
+    cwd = os.path.realpath(os.getcwd())
+    resolved = os.path.realpath(os.path.join(cwd, os.path.expanduser(value)))
+    if not _inside(cwd, resolved):
+        return f"ruta fuera del directorio de trabajo: {value}"
+    rel_parts = {p.lower() for p in Path(os.path.relpath(resolved, cwd)).parts}
+    if rel_parts & SENSITIVE_NAMES:
+        return f"ruta sensible bloqueada: {value}"
+    return None
+
+
+def validate_command(cmd):
+    """Devuelve (argv, None) si el comando es seguro, o (None, motivo) si se bloquea."""
+    for bad in DANGEROUS_CHARS:
+        if bad in cmd:
+            shown = "salto de línea" if bad in ("\n", "\r") else bad
+            return None, f"carácter no permitido: {shown}"
+    try:
+        argv = shlex.split(cmd, posix=(os.name != "nt"))
+    except ValueError as e:
+        return None, f"comando mal formado: {e}"
+    argv = [a[1:-1] if len(a) > 1 and a[0] == a[-1] and a[0] in "\"'" else a for a in argv]
+    if not argv:
+        return None, "comando vacío"
+
+    base = argv[0]
+    if base != os.path.basename(base):
+        return None, "usa solo el nombre del comando, sin ruta"
+    name = base.lower()
+    if name.endswith(".exe"):
+        name = name[:-4]
+    if name not in ALLOWED_COMMANDS:
+        return None, f"'{base}' no está en la lista de permitidos ({', '.join(sorted(ALLOWED_COMMANDS))})"
+
+    denied = DENY_FLAGS.get(name, set())
+    for a in argv[1:]:
+        if a.split("=", 1)[0] in denied:
+            return None, f"opción bloqueada para {name}: {a}"
+        if a.startswith("-"):
+            if "=" not in a:
+                continue
+            a = a.split("=", 1)[1]   # --opcion=/ruta: se valida el valor
+        if a:
+            problem = _check_path(a)
+            if problem:
+                return None, problem
+    return argv, None
 
 
 def truncate(text, limit=MAX_OUTPUT_CHARS):
@@ -569,17 +651,23 @@ def truncate(text, limit=MAX_OUTPUT_CHARS):
 
 
 def run_command(cmd):
+    """Valida (allowlist + sandbox), pide confirmación y ejecuta SIN shell.
+    Devuelve la salida (str) o None si se bloqueó o canceló."""
     cmd = cmd.strip()
     if not cmd:
+        return None
+    argv, problem = validate_command(cmd)
+    if problem:
+        err(f"Comando bloqueado: {problem}")
         return None
     print(c(f"Comando propuesto:\n  $ {cmd}", "33"))
     if not ask_yes_no("¿Ejecutar este comando?"):
         warn("Comando cancelado.")
         return None
     try:
-        res = subprocess.run(cmd, shell=True, capture_output=True, text=True,
-                             encoding="utf-8", errors="replace",
-                             timeout=COMMAND_TIMEOUT, cwd=os.getcwd())
+        res = subprocess.run(
+            argv, shell=False, capture_output=True, text=True,
+            encoding="utf-8", errors="replace", timeout=COMMAND_TIMEOUT, cwd=os.getcwd())
         out = (res.stdout or "") + (res.stderr or "")
         print(out.rstrip() if out.strip() else c("(sin salida)", "90"))
         (ok if res.returncode == 0 else err)(f"[código de salida: {res.returncode}]")
@@ -693,7 +781,8 @@ def mostrar_banner():
 
 HELP = """Comandos:
   /file RUTA   Cambia el archivo de contexto
-  /run CMD     Ejecuta un comando (con confirmación)   (atajo: !CMD)
+  /run CMD     Ejecuta un comando permitido (ls, cat, grep, find, git, python, node, pip)
+               Atajo: !CMD. Solo dentro del directorio actual, sin ; & | > < ` $()
   /key         Añade o cambia una API Key
   /stream      Activa/desactiva el streaming
   /clear       Borra el historial
@@ -764,3 +853,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
