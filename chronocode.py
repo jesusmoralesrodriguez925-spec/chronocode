@@ -4,7 +4,7 @@
 ChronoCode - Agente de programación para la terminal. Open Source, BYOK.
 Sin backend, sin base de datos, sin servidores propios.
 Dependencias: librería estándar + requests + python-dotenv.
-Proveedores: Gemini, Groq, OpenAI, Anthropic (tu propia API Key).
+Proveedores: Groq, OpenRouter, OpenAI, Anthropic, Gemini (tu propia API Key).
 
 Uso:  python chronocode.py [archivo]
 Comandos: /file /run /key /stream /clear /help /exit   (atajo: !cmd)
@@ -44,14 +44,18 @@ load_dotenv(ENV_PATH)
 
 KEY_VARS = {
     "Groq": "GROQ_API_KEY",
+    "OpenRouter": "OPENROUTER_API_KEY",
     "OpenAI": "OPENAI_API_KEY",
     "Anthropic": "ANTHROPIC_API_KEY",
     "Gemini": "GEMINI_API_KEY",
 }
 
 # Modelos: se pueden cambiar desde el .env sin tocar el código.
+# Los catálogos (sobre todo los ":free" de OpenRouter) cambian a menudo: verifica nombres vigentes.
 GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
 GROQ_FALLBACK_MODEL = os.getenv("GROQ_FALLBACK_MODEL", "llama-3.3-70b-versatile")
+OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "meta-llama/llama-3.3-70b-instruct:free")
+OPENROUTER_FALLBACK_MODEL = os.getenv("OPENROUTER_FALLBACK_MODEL", "openai/gpt-oss-120b:free")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-haiku-5-5")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-flash-latest")
@@ -59,13 +63,14 @@ GEMINI_FALLBACK_MODEL = os.getenv("GEMINI_FALLBACK_MODEL", "gemini-2.5-flash")
 ANTHROPIC_MAX_TOKENS = 8192
 
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
+OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 OPENAI_URL = "https://api.openai.com/v1/chat/completions"
 ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
 GEMINI_URL = ("https://generativelanguage.googleapis.com/v1beta/models/"
               "{model}:streamGenerateContent?alt=sse")
 
 # Orden por defecto. Cámbialo con CHRONO_PROVIDER_ORDER="gemini,groq" en el .env
-DEFAULT_ORDER = ["Groq", "OpenAI", "Anthropic", "Gemini"]
+DEFAULT_ORDER = ["Groq", "OpenRouter", "OpenAI", "Anthropic", "Gemini"]
 
 STREAM = True
 CONNECT_TIMEOUT = int(os.getenv("CHRONO_CONNECT_TIMEOUT", "20"))   # segundos para conectar
@@ -255,9 +260,11 @@ def _merge_roles(msgs):
     return out
 
 
-def _build_openai_like(url, key, model, messages, temperature):
+def _build_openai_like(url, key, model, messages, temperature, extra_headers=None):
     headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json",
                "User-Agent": "ChronoCode/1.0"}
+    if extra_headers:
+        headers.update(extra_headers)
     payload = {"model": model, "messages": messages, "stream": True}
     if temperature is not None:
         payload["temperature"] = temperature
@@ -266,6 +273,11 @@ def _build_openai_like(url, key, model, messages, temperature):
 
 def _build_groq(key, model, messages):
     return _build_openai_like(GROQ_URL, key, model, messages, 0.2)
+
+
+def _build_openrouter(key, model, messages):
+    extra = {"X-Title": "ChronoCode"}   # cabecera opcional de OpenRouter
+    return _build_openai_like(OPENROUTER_URL, key, model, messages, 0.2, extra)
 
 
 def _build_openai(key, model, messages):
@@ -296,6 +308,7 @@ def _build_gemini(key, model, messages):
 def available_providers():
     specs = {
         "Groq": ([GROQ_MODEL, GROQ_FALLBACK_MODEL], _build_groq),
+        "OpenRouter": ([OPENROUTER_MODEL, OPENROUTER_FALLBACK_MODEL], _build_openrouter),
         "OpenAI": ([OPENAI_MODEL], _build_openai),
         "Anthropic": ([ANTHROPIC_MODEL], _build_anthropic),
         "Gemini": ([GEMINI_MODEL, GEMINI_FALLBACK_MODEL], _build_gemini),
@@ -330,7 +343,7 @@ def _consume_sse(r, res, extract):
     try:
         for raw in r.iter_lines(decode_unicode=True):
             if not raw or raw.startswith(":") or not raw.startswith("data:"):
-                continue
+                continue   # keep-alives (OpenRouter envía ": OPENROUTER PROCESSING") y líneas vacías
             data = raw[5:].strip()
             if data == "[DONE]":
                 res.complete = True
@@ -388,6 +401,8 @@ def _http_request(url, headers, payload, extract, res):
         code = r.status_code
         if code in (401, 403):
             return False, f"__skip_provider__:acceso denegado (HTTP {code}): clave inválida o servicio no disponible desde tu región", 0
+        if code == 402:
+            return False, "__skip_provider__:sin créditos o pago requerido (HTTP 402)", 0
         if code == 429:
             return False, "__skip_model__:límite de uso alcanzado (HTTP 429)", 0
         if code == 408 or code >= 500:
@@ -610,6 +625,8 @@ def guardar_en_env(variable, valor):
 def detectar_proveedor(key):
     if key.startswith("gsk_"):
         return "Groq"
+    if key.startswith("sk-or-v1-"):    # antes que "sk-ant-" y "sk-"
+        return "OpenRouter"
     if key.startswith("sk-ant-"):      # antes que "sk-"
         return "Anthropic"
     if key.startswith("sk-"):
@@ -621,7 +638,7 @@ def detectar_proveedor(key):
 
 def pedir_clave():
     """Pide una API Key, detecta el proveedor y la guarda. Devuelve True si se guardó."""
-    print("Pega tu API Key (Gemini, Groq, OpenAI o Anthropic):")
+    print("Pega tu API Key (Gemini, Groq, OpenRouter, OpenAI o Anthropic):")
     try:
         key = input(c("> ", "1;32")).strip()
     except (EOFError, KeyboardInterrupt):
@@ -634,11 +651,12 @@ def pedir_clave():
     if not prov:
         warn("No reconozco el prefijo de esa clave.")
         try:
-            prov = input("¿De qué proveedor es? (gemini/groq/openai/anthropic): ").strip().capitalize()
+            resp = input("¿De qué proveedor es? (gemini/groq/openrouter/openai/anthropic): ").strip().lower()
         except (EOFError, KeyboardInterrupt):
             print()
             return False
-        if prov not in KEY_VARS:
+        prov = next((n for n in KEY_VARS if n.lower() == resp), None)
+        if not prov:
             err("Proveedor no válido.")
             return False
     guardar_en_env(KEY_VARS[prov], key)
@@ -652,8 +670,9 @@ def setup_wizard():
     print(c("=" * 60, "36"))
     print(c("  ¡Bienvenido a ChronoCode!", "1;36"))
     print(c("  Agente 100% Open Source. Trae tu propia API Key (BYOK).", "36"))
-    print(c("  Gemini: https://aistudio.google.com/apikey", "33"))
-    print(c("  Groq:   https://console.groq.com/keys", "33"))
+    print(c("  Gemini:     https://aistudio.google.com/apikey", "33"))
+    print(c("  Groq:       https://console.groq.com/keys", "33"))
+    print(c("  OpenRouter: https://openrouter.ai/keys", "33"))
     print(c("=" * 60, "36"))
     if not pedir_clave():
         sys.exit(1)
