@@ -1,38 +1,59 @@
 #!/usr/bin/env bash
-# ChronoCode - instalador. Funciona en Termux, Debian/Ubuntu, Fedora, Arch y macOS.
+# ChronoCode - instalador de alias global.
+# Uso: bash install.sh
+# No instala paquetes ni librerías. Solo crea el comando "chronocode".
 set -e
 
-echo "==> Instalando ChronoCode..."
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT="$DIR/chronocode.py"
 
-if [ -n "$TERMUX_VERSION" ] || command -v pkg >/dev/null 2>&1 && [ -d "/data/data/com.termux" ]; then
-  echo "==> Termux detectado"
-  pkg update -y && pkg upgrade -y
-  pkg install -y python git
-elif command -v apt-get >/dev/null 2>&1; then
-  sudo apt-get update -y
-  sudo apt-get install -y python3 python3-pip git
-elif command -v dnf >/dev/null 2>&1; then
-  sudo dnf install -y python3 python3-pip git
-elif command -v pacman >/dev/null 2>&1; then
-  sudo pacman -Sy --noconfirm python python-pip git
-elif command -v brew >/dev/null 2>&1; then
-  brew install python git
-else
-  echo "No reconozco tu gestor de paquetes. Instala Python 3 manualmente y vuelve a ejecutar."
+if [ ! -f "$SCRIPT" ]; then
+  echo "No encuentro chronocode.py en $DIR"
   exit 1
 fi
 
-PY=python3
-command -v python3 >/dev/null 2>&1 || PY=python
+# Elige el intérprete de Python disponible
+PY=""
+for cand in python3 python; do
+  if command -v "$cand" >/dev/null 2>&1; then PY="$cand"; break; fi
+done
+if [ -z "$PY" ]; then
+  echo "No encuentro Python. Instálalo tú y vuelve a ejecutar este script."
+  exit 1
+fi
 
-echo "==> Instalando dependencias de Python..."
-$PY -m pip install --upgrade requests python-dotenv rich 2>/dev/null \
-  || $PY -m pip install --user --upgrade requests python-dotenv rich 2>/dev/null \
-  || $PY -m pip install --user --break-system-packages --upgrade requests python-dotenv rich
-
-touch .gitignore
-grep -qxF ".env" .gitignore || echo ".env" >> .gitignore
-
-echo ""
-echo "Listo. Ejecuta:  $PY chronocode.py"
-echo "Al primer inicio te pedirá tu API Key (Gemini: https://aistudio.google.com/apikey)."
+OS="$(uname -s 2>/dev/null || echo unknown)"
+case "$OS" in
+  MINGW*|MSYS*|CYGWIN*)  # Git Bash / MSYS en Windows
+    BIN_DIR="$HOME/bin"
+    mkdir -p "$BIN_DIR"
+    cat > "$BIN_DIR/chronocode.bat" <<EOF
+@echo off
+"$PY" "$SCRIPT" %*
+EOF
+    # Asegura que ~/bin esté en el PATH de Git Bash
+    RC="$HOME/.bashrc"
+    grep -qF 'export PATH="$HOME/bin:$PATH"' "$RC" 2>/dev/null || \
+      echo 'export PATH="$HOME/bin:$PATH"' >> "$RC"
+    grep -qF "alias chronocode=" "$RC" 2>/dev/null || \
+      echo "alias chronocode='$PY \"$SCRIPT\"'" >> "$RC"
+    echo "Windows: creado $BIN_DIR/chronocode.bat"
+    echo "Abre una terminal nueva y escribe: chronocode"
+    ;;
+  *)  # Linux, macOS, Termux
+    RC="$HOME/.bashrc"
+    case "${SHELL:-}" in
+      *zsh) RC="$HOME/.zshrc" ;;
+    esac
+    touch "$RC"
+    # Quita un alias anterior de ChronoCode para no duplicarlo
+    sed -i.bak '/# ChronoCode alias/d; /alias chronocode=/d' "$RC" 2>/dev/null || true
+    rm -f "$RC.bak"
+    {
+      echo "# ChronoCode alias"
+      echo "alias chronocode='$PY \"$SCRIPT\"'"
+    } >> "$RC"
+    echo "Alias creado en $RC"
+    echo "Cierra la terminal (en Termux, cierra la app por completo) y escribe: chronocode"
+    ;;
+esac
