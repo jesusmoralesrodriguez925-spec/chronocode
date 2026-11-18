@@ -1,153 +1,135 @@
+# README.md para chronocode
+
+```markdown
 # ChronoCode
 
-<img src="logo.svg" width="120" alt="ChronoCode">
+> **EN:** An open-source AI coding agent for your terminal. Bring your own API key (BYOK), no servers, no accounts. Works on Android (Termux), Windows, macOS and Linux.
 
-![ChronoCode Terminal](./assets/screenshot.jpg)
+**ChronoCode** es un agente de programación con IA para tu terminal. Es de código abierto, funciona con tu propia API Key (BYOK) y no depende de ningún servidor nuestro: tus claves y tu código solo viajan al proveedor que elijas.
 
-**ES:** Agente de IA de código abierto para tu terminal. Sin servidores, sin cuentas, sin pagos: tú pones tu propia API Key (BYOK) y todo corre en tu equipo.
-**EN:** Open-source AI coding agent for your terminal. No servers, no accounts, no payments: you bring your own API key (BYOK) and everything runs on your machine.
+## Características
 
-Funciona en / Works on: Android (Termux), Linux, macOS, Windows.
+- **UI profesional:** banner fijo con una mascota animada que cambia de estado (reposo, pensando, ejecutando, listo), sin repetir cajas en pantalla.
+- **Menú interactivo:** escribe `/` y aparece un menú flotante con todos los comandos. Filtra en tiempo real (`/cl` → `/clear`) y elige con las flechas y Enter.
+- **Barra de escritura fluida:** textos largos sin cortes, con historial de entradas usando las flechas.
+- **Pantalla limpia:** se abre en una pantalla propia, como vim o nano, y al salir devuelve tu terminal tal como estaba.
+- **Ejecución de comandos:** puede ejecutar cualquier comando de Linux o Termux que le pidas, con revisión de seguridad y confirmación antes de cada ejecución.
+- **Seguridad:** un sistema de bloqueo impide comandos destructivos, como `rm -rf /`, `mkfs`, `dd` sobre discos, `shutdown`, `sudo` o la lectura de tus claves (`.env`, `~/.ssh`).
+- **Permisos en Termux:** en Android pide el acceso al almacenamiento una sola vez.
+- **12 proveedores de IA:** Gemini, Groq, OpenRouter, OpenAI, Anthropic, DeepSeek, Grok (xAI), Hugging Face, Meta AI, Mistral AI, Cohere y Perplexity. Si uno falla, pasa automáticamente al siguiente que tengas configurado.
+- **Multisistema:** Termux, Windows, macOS y Linux.
 
----
+## Instalación rápida
 
-## Español
+1. Clona el repositorio y entra en la carpeta:
 
-### ¿Qué es BYOK?
-*Bring Your Own Key*: usas tu propia API Key de un proveedor de IA. ChronoCode habla directamente con el proveedor; no existe ningún servidor intermedio y tu clave solo se guarda en un archivo `.env` local.
+   ```bash
+   git clone https://github.com/jesusmoralesrodriguez925-spec/chronocode.git
+   cd chronocode
+   ```
 
-### Proveedores soportados
-Gemini, Groq, **OpenRouter**, OpenAI y Anthropic. Si uno falla (límite de uso, clave inválida, timeout, servicio no disponible en tu región), ChronoCode pasa automáticamente al siguiente que tengas configurado.
+2. Instala las dependencias:
 
-**OpenRouter** es un agregador: con una sola clave accedes a muchos modelos de distintos proveedores, incluidos varios gratuitos (los que terminan en `:free`). Verifica que el servicio esté disponible en tu país y respeta sus términos de uso.
+   ```bash
+   pip install requests python-dotenv rich prompt_toolkit
+   ```
 
-### Instalación rápida (Termux, Linux, macOS)
-```bash
-git clone https://github.com/jesusmoralesrodriguez925-spec/chronocode.git
-cd chronocode
-bash install.sh
-python chronocode.py
-```
+   En macOS o Linux usa `pip3`.
 
-Instalación manual
+3. Crea el alias global:
 
-```bash
-pip install requests python-dotenv rich
-python chronocode.py
-```
+   ```bash
+   bash install.sh
+   ```
 
-En Windows: instala Python desde python.org (marca "Add Python to PATH"), luego pip install requests python-dotenv y python chronocode.py.
+4. Cierra la terminal por completo y vuelve a abrirla (en Termux, cierra la app desde recientes).
 
-Cómo conseguir una API Key gratis
+5. Desde cualquier carpeta, escribe:
 
-· Gemini: https://aistudio.google.com/apikey (capa gratuita con límites diarios).
-· Groq: https://console.groq.com/keys (capa gratuita con límites por minuto).
-· OpenRouter: https://openrouter.ai/keys (modelos :free con límites diarios).
+   ```bash
+   chronocode
+   ```
 
-Al primer inicio, ChronoCode te pide la clave, detecta el proveedor por su prefijo (AIza, gsk_, sk-or-v1-, sk-ant-, sk-) y la guarda en .env. Puedes añadir otra con /key.
+El primer inicio te pide tu API Key y la guarda en un archivo `.env` local, con permisos solo para tu usuario.
 
-Uso
+## Obtén una API Key gratis
 
-```bash
-python chronocode.py              # modo conversación
-python chronocode.py mi_script.py # con un archivo como contexto
-```
+- **Gemini:** https://aistudio.google.com/apikey
+- **Groq:** https://console.groq.com/keys
+- **OpenRouter:** https://openrouter.ai/keys (modelos con sufijo `:free`)
 
-Comando Acción
-/file RUTA Cambia el archivo de contexto
-/run CMD o !CMD Ejecuta un comando (pide confirmación)
-/key Añade o cambia una API Key
-/clear Borra el historial
-/exit Sale
+Puedes añadir más con `/key`. Ver los proveedores activos y sus modelos: `/proveedores`.
 
-Configuración opcional (.env)
+## Uso
 
-```
+| Comando | Acción |
+|---|---|
+| `/` | Muestra el menú de comandos |
+| `/file RUTA` | Cambia el archivo de contexto |
+| `/run CMD` o `!CMD` | Ejecuta un comando (pide confirmación) |
+| `/key` | Añade o cambia una API Key |
+| `/proveedores` | Muestra los proveedores y sus modelos |
+| `/ver` | Lee la última respuesta completa con scroll |
+| `/ui` | Activa o desactiva el banner fijo |
+| `/clear` | Borra el historial |
+| `/help` | Muestra la ayuda |
+| `/exit` | Sale |
+
+Cualquier otro texto se envía a la IA. Por ejemplo: `Borra el archivo hola.py`. La IA propone el comando, lo revisa, y tú confirmas antes de ejecutarlo.
+
+## Configuración opcional (`.env`)
+
+```env
 GEMINI_API_KEY="AIza..."
 GROQ_API_KEY="gsk_..."
 OPENROUTER_API_KEY="sk-or-v1-..."
 OPENAI_API_KEY="sk-..."
 ANTHROPIC_API_KEY="sk-ant-..."
+DEEPSEEK_API_KEY="..."
+XAI_API_KEY="xai-..."
+HUGGINGFACE_API_KEY="hf_..."
+LLAMA_API_KEY="..."
+MISTRAL_API_KEY="..."
+COHERE_API_KEY="..."
+PERPLEXITY_API_KEY="pplx-..."
 
-OPENROUTER_MODEL="meta-llama/llama-3.3-70b-instruct:free"
+# Orden de preferencia de proveedores
+CHRONO_PROVIDER_ORDER="gemini,groq"
 
-CHRONO_PROVIDER_ORDER="gemini,openrouter"   # orden de preferencia
-CHRONO_CONNECT_TIMEOUT=20             # segundos para conectar
-CHRONO_READ_TIMEOUT=120               # segundos esperando respuesta
-GEMINI_MODEL="gemini-flash-latest"    # los modelos se pueden cambiar sin tocar el código
+# Modelos (se pueden cambiar sin tocar el código, p. ej. DEEPSEEK_MODEL)
+GEMINI_MODEL="gemini-flash-latest"
+
+# Tiempos de espera (segundos)
+CHRONO_CONNECT_TIMEOUT=20
+CHRONO_READ_TIMEOUT=120
+
+# Pedir confirmación antes de ejecutar comandos (1 = sí, 0 = no)
+CHRONO_CONFIRMAR=1
 ```
 
-Seguridad
+Nota: las variables de entorno `*_API_KEY` no se pasan a los comandos que ejecuta el agente.
 
-· Nunca subas tu .env a GitHub. Este repo lo ignora en .gitignore.
-· ChronoCode siempre pide confirmación antes de guardar archivos o ejecutar comandos. Léelos antes de aceptar.
-· El contenido de tus archivos y conversaciones se envía al proveedor que uses; revisa su política de privacidad.
+## Seguridad
 
----
+- **Confirmación obligatoria:** ningún comando se ejecuta sin que lo aceptes (salvo que pongas `CHRONO_CONFIRMAR=0`, y aun así la IA debe aprobarlo).
+- **Denylist:** bloquea comandos destructivos y de sistema, incluidos los que se esconden en pipes, `bash -c` o `sudo`.
+- **Revisión por IA:** los comandos que propone el modelo se evalúan antes de mostrarse.
+- **Sandbox de archivos:** el agente solo guarda archivos dentro del directorio de trabajo.
+- **Tus secretos:** el archivo `.env` y las claves no se envían a los comandos ni se guardan en el repositorio.
 
-English
+Estas capas reducen mucho el riesgo, pero no sustituyen tu criterio: lee cada comando antes de aceptarlo.
 
-What is BYOK?
+## Estructura
 
-Bring Your Own Key: you use your own API key from an AI provider. ChronoCode talks directly to the provider. There is no middle server, and your key is stored only in a local .env file.
-
-Supported providers
-
-Gemini, Groq, OpenRouter, OpenAI and Anthropic. If one fails (rate limit, invalid key, timeout, service unavailable in your region), ChronoCode automatically falls back to the next configured one.
-
-OpenRouter is an aggregator: one key gives you access to many models from different providers, including several free ones (those ending in :free). Check that the service is available in your country and follow its terms of service.
-
-Quick install (Termux, Linux, macOS)
-
-```bash
-git clone https://github.com/jesusmoralesrodriguez925-spec/chronocode.git
-cd chronocode
-bash install.sh
-python chronocode.py
+```
+chronocode/
+├── chronocode.py   # agente (un solo archivo)
+├── install.sh      # crea el alias global `chronocode`
+├── README.md
+└── .gitignore      # incluye .env
 ```
 
-Manual install
+## Licencia
 
-```bash
-pip install requests python-dotenv
-python chronocode.py
-```
-
-On Windows: install Python from python.org (check "Add Python to PATH"), then pip install requests python-dotenv and python chronocode.py.
-
-Getting a free API key
-
-· Gemini: https://aistudio.google.com/apikey (free tier with daily limits).
-· Groq: https://console.groq.com/keys (free tier with per-minute limits).
-· OpenRouter: https://openrouter.ai/keys (:free models with daily limits).
-
-On first run, ChronoCode asks for your key, detects the provider from its prefix (AIza, gsk_, sk-or-v1-, sk-ant-, sk-) and saves it to .env. Add another one anytime with /key.
-
-Usage
-
-```bash
-python chronocode.py              # chat mode
-python chronocode.py my_script.py # with a file as context
-```
-
-Command Action
-/file PATH Change the context file
-/run CMD or !CMD Run a command (asks for confirmation)
-/key Add or change an API key
-/stream Toggle streaming
-/clear Clear history
-/exit Quit
-
-Security
-
-· Never commit your .env to GitHub (it is listed in .gitignore).
-· ChronoCode always asks for confirmation before writing files or running commands. Read them before accepting.
-· Your files and conversations are sent to the provider you use; check their privacy policy.
-
----
-
-License
-
-MIT. Contributions welcome.
-
+MIT. Las contribuciones son bienvenidas.
 ```
