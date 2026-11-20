@@ -1,6 +1,3 @@
-# README.md para chronocode
-
-```markdown
 # ChronoCode
 
 > **EN:** An open-source AI coding agent for your terminal. Bring your own API key (BYOK), no servers, no accounts. Works on Android (Termux), Windows, macOS and Linux.
@@ -128,6 +125,13 @@ chronocode/
 ├── README.md
 └── .gitignore      # incluye .env
 ```
+## ❤️ Apoya a ChronoCode
+Si ChronoCode te resulta útil y quieres contribuir a su desarrollo, puedes hacer una donación en USDT. ¡Cualquier apoyo suma muchísimo para seguir mejorando el proyecto!
+
+**Red:** BNB Smart Chain (BEP20)
+**Dirección:** `0xe10D30B2914B49d28C8a4BE47e10D9FF61dbeE83`
+
+*Nota: Asegúrate de enviar USDT únicamente por la red BEP20. Otras redes podrían resultar en la pérdida de los fondos.*
 
 ## Licencia
 
