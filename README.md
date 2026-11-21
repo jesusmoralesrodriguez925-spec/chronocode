@@ -1,63 +1,75 @@
+<div align="center">
+
+<img src="assets/chronocode.png" alt="ChronoCode" width="320">
+
 # ChronoCode
 
-> **EN:** An open-source AI coding agent for your terminal. Bring your own API key (BYOK), no servers, no accounts. Works on Android (Termux), Windows, macOS and Linux.
+**El agente de IA de código abierto que corre en tu terminal.**
 
-**ChronoCode** es un agente de programación con IA para tu terminal. Es de código abierto, funciona con tu propia API Key (BYOK) y no depende de ningún servidor nuestro: tus claves y tu código solo viajan al proveedor que elijas.
+[![Licencia: MIT](https://img.shields.io/badge/licencia-MIT-22c55e.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.9%2B-3776ab.svg)](https://www.python.org/)
+[![Plataformas](https://img.shields.io/badge/plataformas-Termux%20%7C%20Windows%20%7C%20macOS%20%7C%20Linux-22c55e.svg)](#instalación)
+
+[Canal de Telegram](https://t.me/chronocode_dv) · [X](https://x.com/chronocodedv) · [Reportar un problema](https://github.com/jesusmoralesrodriguez925-spec/chronocode/issues)
+
+</div>
+
+ChronoCode es un agente de programación para la terminal. Trae tu propia API Key (BYOK), no depende de ningún servidor propio y funciona en Android (Termux), Windows, macOS y Linux. Tus claves y tu código solo se envían al proveedor de IA que elijas.
 
 ## Características
 
-- **UI profesional:** banner fijo con una mascota animada que cambia de estado (reposo, pensando, ejecutando, listo), sin repetir cajas en pantalla.
-- **Menú interactivo:** escribe `/` y aparece un menú flotante con todos los comandos. Filtra en tiempo real (`/cl` → `/clear`) y elige con las flechas y Enter.
-- **Barra de escritura fluida:** textos largos sin cortes, con historial de entradas usando las flechas.
-- **Pantalla limpia:** se abre en una pantalla propia, como vim o nano, y al salir devuelve tu terminal tal como estaba.
-- **Ejecución de comandos:** puede ejecutar cualquier comando de Linux o Termux que le pidas, con revisión de seguridad y confirmación antes de cada ejecución.
-- **Seguridad:** un sistema de bloqueo impide comandos destructivos, como `rm -rf /`, `mkfs`, `dd` sobre discos, `shutdown`, `sudo` o la lectura de tus claves (`.env`, `~/.ssh`).
-- **Permisos en Termux:** en Android pide el acceso al almacenamiento una sola vez.
-- **12 proveedores de IA:** Gemini, Groq, OpenRouter, OpenAI, Anthropic, DeepSeek, Grok (xAI), Hugging Face, Meta AI, Mistral AI, Cohere y Perplexity. Si uno falla, pasa automáticamente al siguiente que tengas configurado.
-- **Multisistema:** Termux, Windows, macOS y Linux.
+- **Interfaz de terminal:** banner fijo con una mascota animada que cambia de estado (reposo, pensando, ejecutando, listo).
+- **Menú de comandos:** escribe `/` y aparece el menú con filtrado en tiempo real.
+- **Entrada de texto fluida:** mensajes largos sin cortes e historial con las flechas.
+- **Pantalla propia:** se abre en una pantalla dedicada, como `vim` o `nano`, y al salir devuelve la terminal tal como estaba.
+- **Comandos del sistema con control:** el agente puede proponer comandos de tu sistema; cada uno pasa por una denylist, una revisión por IA y tu confirmación antes de ejecutarse.
+- **12 proveedores de IA:** Gemini, Groq, OpenRouter, OpenAI, Anthropic, DeepSeek, Grok (xAI), Hugging Face, Meta AI, Mistral AI, Cohere y Perplexity. Si uno falla, usa automáticamente el siguiente que tengas configurado.
+- **Permisos en Termux:** solicita el acceso al almacenamiento una sola vez.
 
-## Instalación rápida
+## Instalación
 
-1. Clona el repositorio y entra en la carpeta:
+**Requisitos:** Python 3 y `git`.
 
-   ```bash
-   git clone https://github.com/jesusmoralesrodriguez925-spec/chronocode.git
-   cd chronocode
-   ```
+**1. Clona el repositorio**
 
-2. Instala las dependencias:
+```bash
+git clone https://github.com/jesusmoralesrodriguez925-spec/chronocode.git
+cd chronocode
+```
 
-   ```bash
-   pip install requests python-dotenv rich prompt_toolkit
-   ```
+**2. Instala las dependencias**
 
-   En macOS o Linux usa `pip3`.
+```bash
+pip install requests python-dotenv rich prompt_toolkit
+```
 
-3. Crea el alias global:
+En macOS o Linux usa `pip3`.
 
-   ```bash
-   bash install.sh
-   ```
+**3. Crea el comando global**
 
-4. Cierra la terminal por completo y vuelve a abrirla (en Termux, cierra la app desde recientes).
+```bash
+bash install.sh
+```
 
-5. Desde cualquier carpeta, escribe:
+**4. Reinicia la terminal** (en Termux, cierra la app desde recientes) y ejecuta desde cualquier carpeta:
 
-   ```bash
-   chronocode
-   ```
+```bash
+chronocode
+```
 
-El primer inicio te pide tu API Key y la guarda en un archivo `.env` local, con permisos solo para tu usuario.
+En el primer inicio te pedirá tu API Key y la guardará en un archivo `.env` local, con permisos solo para tu usuario.
 
-## Obtén una API Key gratis
+## Obtén una API Key
 
-- **Gemini:** https://aistudio.google.com/apikey
-- **Groq:** https://console.groq.com/keys
-- **OpenRouter:** https://openrouter.ai/keys (modelos con sufijo `:free`)
+| Proveedor | Dónde obtenerla | Notas |
+|---|---|---|
+| Gemini | [aistudio.google.com/apikey](https://aistudio.google.com/apikey) | Capa gratuita con límites diarios |
+| Groq | [console.groq.com/keys](https://console.groq.com/keys) | Capa gratuita con límites por minuto |
+| OpenRouter | [openrouter.ai/keys](https://openrouter.ai/keys) | Modelos con sufijo `:free` |
 
-Puedes añadir más con `/key`. Ver los proveedores activos y sus modelos: `/proveedores`.
+Puedes añadir más proveedores en cualquier momento con `/key`.
 
-## Uso
+## Comandos
 
 | Comando | Acción |
 |---|---|
@@ -65,16 +77,16 @@ Puedes añadir más con `/key`. Ver los proveedores activos y sus modelos: `/pro
 | `/file RUTA` | Cambia el archivo de contexto |
 | `/run CMD` o `!CMD` | Ejecuta un comando (pide confirmación) |
 | `/key` | Añade o cambia una API Key |
-| `/proveedores` | Muestra los proveedores y sus modelos |
+| `/proveedores` | Muestra los proveedores activos y sus modelos |
 | `/ver` | Lee la última respuesta completa con scroll |
 | `/ui` | Activa o desactiva el banner fijo |
-| `/clear` | Borra el historial |
+| `/clear` | Borra el historial de la conversación |
 | `/help` | Muestra la ayuda |
-| `/exit` | Sale |
+| `/exit` | Sale del agente |
 
-Cualquier otro texto se envía a la IA. Por ejemplo: `Borra el archivo hola.py`. La IA propone el comando, lo revisa, y tú confirmas antes de ejecutarlo.
+Cualquier otro texto se envía a la IA. Por ejemplo, escribe `borra el archivo hola.py`: la IA propone el comando, lo revisa y te pide confirmación antes de ejecutarlo.
 
-## Configuración opcional (`.env`)
+## Configuración (`.env`)
 
 ```env
 GEMINI_API_KEY="AIza..."
@@ -93,47 +105,50 @@ PERPLEXITY_API_KEY="pplx-..."
 # Orden de preferencia de proveedores
 CHRONO_PROVIDER_ORDER="gemini,groq"
 
-# Modelos (se pueden cambiar sin tocar el código, p. ej. DEEPSEEK_MODEL)
+# Modelos (cámbialos sin tocar el código, p. ej. DEEPSEEK_MODEL)
 GEMINI_MODEL="gemini-flash-latest"
 
-# Tiempos de espera (segundos)
+# Tiempos de espera en segundos
 CHRONO_CONNECT_TIMEOUT=20
 CHRONO_READ_TIMEOUT=120
 
-# Pedir confirmación antes de ejecutar comandos (1 = sí, 0 = no)
+# Confirmar antes de ejecutar comandos (1 = sí, 0 = no)
 CHRONO_CONFIRMAR=1
 ```
 
-Nota: las variables de entorno `*_API_KEY` no se pasan a los comandos que ejecuta el agente.
+Las variables `*_API_KEY` no se pasan a los comandos que ejecuta el agente.
 
 ## Seguridad
 
-- **Confirmación obligatoria:** ningún comando se ejecuta sin que lo aceptes (salvo que pongas `CHRONO_CONFIRMAR=0`, y aun así la IA debe aprobarlo).
-- **Denylist:** bloquea comandos destructivos y de sistema, incluidos los que se esconden en pipes, `bash -c` o `sudo`.
+- **Confirmación:** ningún comando se ejecuta sin tu aprobación. Con `CHRONO_CONFIRMAR=0` se omite, pero la denylist y la revisión por IA siguen activas.
+- **Denylist:** bloquea comandos destructivos o de sistema, incluidos los que intentan esconderse en pipes, `bash -c` o `sudo`.
 - **Revisión por IA:** los comandos que propone el modelo se evalúan antes de mostrarse.
-- **Sandbox de archivos:** el agente solo guarda archivos dentro del directorio de trabajo.
-- **Tus secretos:** el archivo `.env` y las claves no se envían a los comandos ni se guardan en el repositorio.
+- **Escritura de archivos:** el modelo solo puede guardar archivos dentro del directorio de trabajo.
+- **Secretos:** el archivo `.env` y las claves no se envían a los comandos ni se suben al repositorio.
 
-Estas capas reducen mucho el riesgo, pero no sustituyen tu criterio: lee cada comando antes de aceptarlo.
+Estas capas reducen el riesgo, pero no sustituyen tu criterio: lee cada comando antes de aceptarlo.
 
-## Estructura
+## Estructura del proyecto
 
 ```
 chronocode/
-├── chronocode.py   # agente (un solo archivo)
-├── install.sh      # crea el alias global `chronocode`
+├── assets/
+│   └── chronocode.png   # logo del README
+├── chronocode.py        # agente (un solo archivo)
+├── install.sh           # crea el comando global `chronocode`
 ├── README.md
-└── .gitignore      # incluye .env
+└── .gitignore           # incluye .env
 ```
-## ❤️ Apoya a ChronoCode
-Si ChronoCode te resulta útil y quieres contribuir a su desarrollo, puedes hacer una donación en USDT. ¡Cualquier apoyo suma muchísimo para seguir mejorando el proyecto!
 
-**Red:** BNB Smart Chain (BEP20)
-**Dirección:** `0xe10D30B2914B49d28C8a4BE47e10D9FF61dbeE83`
+## Apoya el proyecto
 
-*Nota: Asegúrate de enviar USDT únicamente por la red BEP20. Otras redes podrían resultar en la pérdida de los fondos.*
+Si ChronoCode te resulta útil, puedes contribuir con una donación en USDT:
+
+- **Red:** BNB Smart Chain (BEP20)
+- **Dirección:** `0xe10D30B2914B49d28C8a4BE47e10D9FF61dbeE83`
+
+Envía únicamente USDT por la red BEP20. Otras redes pueden provocar la pérdida de los fondos.
 
 ## Licencia
 
-MIT. Las contribuciones son bienvenidas.
-```
+Distribuido bajo licencia MIT. Las contribuciones son bienvenidas: abre un issue o un pull request.
