@@ -1081,27 +1081,32 @@ frame_hands_up = [           # manos levantadas
     "    ▀████████▀       ",
     "                     ",
 ]
-frame_look_left = [           # ojos mirando a la izquierda
+frame_look_left = [           # ojos negros desplazados a la izquierda
     "    ▄████████▄       ",
-    "    ██░ ██░ ██       ",
+    "    █  ██  ███       ",
     "███ ██████████ ███   ",
     "▀▀▀ ██████████ ▀▀▀   ",
     "    ▀████████▀       ",
     "                     ",
 ]
-frame_look_right = [          # ojos mirando a la derecha
+frame_look_right = [          # ojos negros desplazados a la derecha
     "    ▄████████▄       ",
-    "    ██ ░██ ░██       ",
+    "    ███  ██  █       ",
     "███ ██████████ ███   ",
     "▀▀▀ ██████████ ▀▀▀   ",
     "    ▀████████▀       ",
     "                     ",
 ]
-IDLE_CICLO = [              # secuencia en reposo (cada fotograma dura 0.3 s)
-    frame_idle, frame_idle, frame_idle, frame_idle_blink, frame_idle,
-    frame_hands_up, frame_idle, frame_look_left, frame_idle, frame_look_right,
-    frame_idle, frame_hands_up,
-]
+IDLE_CICLO = (                # cada fotograma dura 0.3 s
+    [frame_idle] * 10 +               # 3 s quieto
+    [frame_look_left] * 6 +           # mira a la izquierda ~1.8 s
+    [frame_idle] * 10 +               # pausa de 3 s
+    [frame_look_right] * 6 +          # mira a la derecha ~1.8 s
+    [frame_idle] * 10 +               # pausa de 3 s
+    [frame_hands_up] * 5 +            # levanta las manos ~1.5 s
+    [frame_idle] * 10 +               # pausa de 3 s
+    [frame_idle_blink]                # parpadeo
+)
 
 
 def _frame_dormir(n):
