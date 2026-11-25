@@ -1,3 +1,6 @@
 .env
 *.bak
 __pycache__/
+.chronocode_backups/
+tui.py
+*.bak
