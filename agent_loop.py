@@ -77,7 +77,7 @@ def _argumentos(llamada):
         return None
 
 
-def responder(url, headers, modelo, mensajes, validar_ruta=None):
+def responder(url, headers, modelo, mensajes, validar_ruta=None, on_tool=None):
     """
     mensajes: lista [system, ..., user] con role/content.
     validar_ruta(path) -> motivo o None: se aplica a write_file y edit_file.
@@ -96,6 +96,8 @@ def responder(url, headers, modelo, mensajes, validar_ruta=None):
                       "tool_calls": llamadas})
         for llamada in llamadas:
             nombre = llamada["function"]["name"]
+            if on_tool:
+                on_tool(nombre)
             args = _argumentos(llamada)
             if args is None:
                 resultado = "ERROR: argumentos JSON inválidos."

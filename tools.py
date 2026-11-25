@@ -11,6 +11,8 @@ Este módulo NO importa chronocode.py. La denylist, la ejecución de
 comandos y la consola se inyectan con configurar() desde chronocode.py.
 """
 import difflib
+import json
+import time
 import glob as _glob
 import os
 import re
@@ -63,6 +65,60 @@ def _pedir_confirmacion(pregunta):
 # ---------------------------------------------------------------------
 #  Herramientas
 # ---------------------------------------------------------------------
+BACKUP_DIR = Path(".chronocode_backups")
+INDICE = BACKUP_DIR / "index.json"
+
+
+def _leer_indice():
+    if not INDICE.exists():
+        return []
+    try:
+        return json.loads(INDICE.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return []
+
+
+def _guardar_indice(indice):
+    BACKUP_DIR.mkdir(exist_ok=True)
+    INDICE.write_text(json.dumps(indice, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def _respaldar(path_str):
+    """Guarda una copia del archivo antes de cambiarlo (o anota que era nuevo)."""
+    p = Path(path_str).expanduser().resolve()
+    BACKUP_DIR.mkdir(exist_ok=True)
+    indice = _leer_indice()
+    if p.exists():
+        marca = time.strftime("%Y%m%d-%H%M%S")
+        destino = BACKUP_DIR / f"{marca}_{len(indice)}_{p.name}"
+        shutil.copy2(p, destino)
+        indice.append({"path": str(p), "backup": str(destino), "nuevo": False})
+    else:
+        indice.append({"path": str(p), "backup": None, "nuevo": True})
+    _guardar_indice(indice)
+
+
+def rewind():
+    """Deshace el cambio más reciente hecho por write_file o edit_file."""
+    indice = _leer_indice()
+    if not indice:
+        return "No hay cambios para restaurar."
+    ultimo = indice.pop()
+    p = Path(ultimo["path"])
+    try:
+        if ultimo["nuevo"]:
+            if p.exists():
+                p.unlink()
+            mensaje = f"Eliminado el archivo que se había creado: {p}"
+        else:
+            shutil.copy2(ultimo["backup"], p)
+            mensaje = f"Restaurado: {p}"
+    except OSError as e:
+        return f"ERROR al restaurar: {e}"
+    _guardar_indice(indice)
+    return mensaje
+
+
 def read_file(path: str) -> str:
     """Lee un archivo de texto y devuelve su contenido."""
     try:
@@ -86,7 +142,10 @@ def write_file(path: str, content: str) -> str:
                         title=f"Escribir: {path}", title_align="left", border_style="yellow"))
     if not _pedir_confirmacion(f"¿Guardar en {path}?"):
         return f"CANCELADO: el usuario no aprobó escribir '{path}'."
-    # Fase 3: aquí se guardará la copia de seguridad para /rewind.
+    try:
+        _respaldar(path)
+    except OSError as e:
+        return f"ERROR al crear la copia de seguridad: {e}"
     try:
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(content, encoding="utf-8", newline="\n")
@@ -122,7 +181,10 @@ def edit_file(path: str, old_string: str, new_string: str) -> str:
                                    title=f"Editar: {path}", title_align="left", border_style="yellow"))
     if not _pedir_confirmacion(f"¿Aplicar este cambio en {path}?"):
         return f"CANCELADO: el usuario no aprobó editar '{path}'."
-    # Fase 3: aquí se guardará la copia de seguridad para /rewind.
+    try:
+        _respaldar(path)
+    except OSError as e:
+        return f"ERROR al crear la copia de seguridad: {e}"
     try:
         p.write_text(nuevo, encoding="utf-8", newline="\n")
     except OSError as e:
