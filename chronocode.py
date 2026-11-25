@@ -947,8 +947,56 @@ def run_command(cmd, origen="usuario"):
     finally:
         actualizar_banner("listo" if exito else "idle", volver_a_idle_en=2.5 if exito else None)
 
+def _respuesta_agentica(user_text):
+    """Fase 2: bucle agéntico con herramientas (proveedores compatibles con OpenAI).
+    Devuelve un StreamResult, o None para usar el modo clásico."""
+    import agent_loop
+    from context_manager import ContextManager
+
+    prov = next((x for x in available_providers() if PROVEEDORES[x["name"]]["tipo"] == "openai"), None)
+    if prov is None:
+        return None
+    cfg = PROVEEDORES[prov["name"]]
+    headers = {"Authorization": f"Bearer {prov['key']}", "Content-Type": "application/json",
+               "User-Agent": "ChronoCode/1.0"}
+    headers.update(cfg.get("extra", {}))
+    modelo = prov["models"][0]
+
+    STATE.history.append({"role": "user", "content": user_text})
+    trim_history()
+    try:
+        cm = ContextManager()
+        cm.mensajes = STATE.history
+        if cm.needs_compaction() and cm.compact_history(
+                lambda prompt: agent_loop.llamada_simple(cfg["url"], headers, modelo, prompt)):
+            STATE.history = cm.mensajes
+            warn("(Historial compactado para ahorrar espacio)")
+        sistema = {"role": "system",
+                   "content": build_system_message() + "\n\n" + agent_loop.GUIA_HERRAMIENTAS}
+        actualizar_banner("pensando", "Ctrl+C para cortar")
+        texto = agent_loop.responder(cfg["url"], headers, modelo, [sistema] + STATE.history,
+                                     validar_ruta=_check_path)
+    except BaseException as e:
+        STATE.history.pop()
+        if isinstance(e, KeyboardInterrupt):
+            raise
+        actualizar_banner("idle")
+        warn(f"[{prov['name']}] vía de herramientas no disponible ({type(e).__name__}: {e}). "
+             "Uso el modo clásico.")
+        return None
+
+    actualizar_banner("listo", volver_a_idle_en=2.5)
+    STATE.history.append({"role": "assistant", "content": texto})
+    res = StreamResult(prov["name"])
+    res.text = texto
+    res.complete = True
+    return res
+
+
 def ask_model(user_text):
-    res = get_llm_response(user_text)
+    res = _respuesta_agentica(user_text)
+    if res is None:
+        res = get_llm_response(user_text)
     if res is None:
         return
     UI.congelar()
@@ -1728,6 +1776,9 @@ def main():
         UI.desactivar()
         pantalla_alternativa(False)
 
+# --- Fase 1: capa de herramientas ---
+import tools
+tools.configurar(console=console, es_seguro=is_safe_command, ejecutar_shell=_ejecutar_shell)
 
 if __name__ == "__main__":
     main()
