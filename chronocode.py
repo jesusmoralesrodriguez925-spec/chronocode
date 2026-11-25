@@ -951,7 +951,11 @@ def ask_model(user_text):
     res = get_llm_response(user_text)
     if res is None:
         return
-    render_response(res)
+    UI.congelar()
+    try:
+        render_response(res)
+    finally:
+        UI.descongelar()
     if not res.complete:
         warn("(Respuesta incompleta: solo se procesan bloques de código completos)")
     for block in extract_blocks(res.text):
@@ -1251,6 +1255,8 @@ class BannerFijo:
         self.tick = 0
         self._ultimo = None
         self.ultimo_uso = time.monotonic()
+        self.congelado = False
+        self._ultimo_latido = time.monotonic()
         self._stop = threading.Event()
         self._thread = None
         self._atexit = False
@@ -1372,7 +1378,7 @@ class BannerFijo:
             self.detalle_txt = texto
 
     def _dibujar(self, forzar=False):
-        if not self.activo or self.pausado:
+        if not self.activo or self.pausado or self.congelado:
             return
         with self._slock:
             estado, detalle, tick = self.estado_nombre, self.detalle_txt, self.tick
@@ -1394,6 +1400,10 @@ class BannerFijo:
 
     def _bucle(self):
         while not self._stop.wait(0.3):
+            ahora = time.monotonic()
+            if ahora - self._ultimo_latido > 2.0:   # volvió de segundo plano
+                self._redibujar_sin_borrar()
+            self._ultimo_latido = ahora
             try:
                 self._revisar_tamano()
                 with self._slock:
@@ -1404,6 +1414,31 @@ class BannerFijo:
                 self._dibujar()
             except Exception:
                 pass          # la animación nunca debe romper el agente
+
+    def congelar(self):
+        """Pausa la animación mientras se escribe la respuesta (no borra nada)."""
+        self.congelado = True
+
+    def descongelar(self):
+        """Reanuda la animación y redibuja el banner una sola vez."""
+        self.congelado = False
+        self._ultimo = None
+        self._dibujar(forzar=True)
+
+    def _redibujar_sin_borrar(self):
+        """Vuelve a fijar la región y el banner tras estar en segundo plano, sin borrar el chat."""
+        if not self.activo or self.pausado:
+            return
+        cols, filas = shutil.get_terminal_size((80, 24))
+        modo = self._modo(filas)
+        if modo is None:
+            return
+        with self._wlock:
+            self.compacto, self.alto = modo
+            self.dim = (cols, filas)
+            self._region(filas)
+        self._ultimo = None
+        self._dibujar(forzar=True)
 
     def _revisar_tamano(self):
         cols, filas = shutil.get_terminal_size((80, 24))
