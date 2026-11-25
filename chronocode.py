@@ -879,6 +879,12 @@ def handle_file_block(block):
         return
     show_diff(path, block["content"])
     if ask_yes_no(f"¿Guardar este código en {path}?"):
+        try:
+            import tools
+            tools._respaldar(path)
+        except OSError as e:
+            err(f"No se pudo crear la copia de seguridad: {e}")
+            return
         if write_file(path, block["content"]):
             STATE.current_file = path
 
@@ -953,10 +959,15 @@ def _respuesta_agentica(user_text):
     import agent_loop
     from context_manager import ContextManager
 
-    prov = next((x for x in available_providers() if PROVEEDORES[x["name"]]["tipo"] == "openai"), None)
+    prov = next((x for x in available_providers()
+                 if PROVEEDORES[x["name"]]["tipo"] == "openai" or x["name"] == "Gemini"), None)
     if prov is None:
         return None
-    cfg = PROVEEDORES[prov["name"]]
+    if prov["name"] == "Gemini":
+        # Gemini ofrece un endpoint compatible con OpenAI que soporta herramientas
+        cfg = {"url": "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"}
+    else:
+        cfg = PROVEEDORES[prov["name"]]
     headers = {"Authorization": f"Bearer {prov['key']}", "Content-Type": "application/json",
                "User-Agent": "ChronoCode/1.0"}
     headers.update(cfg.get("extra", {}))
@@ -990,6 +1001,7 @@ def _respuesta_agentica(user_text):
     res = StreamResult(prov["name"])
     res.text = texto
     res.complete = True
+    res.agentica = True   # los archivos ya se guardaron con herramientas
     return res
 
 
@@ -1006,6 +1018,8 @@ def ask_model(user_text):
         UI.descongelar()
     if not res.complete:
         warn("(Respuesta incompleta: solo se procesan bloques de código completos)")
+    if getattr(res, "agentica", False):
+        return
     for block in extract_blocks(res.text):
         if block["kind"] == "cmd":                 # la IA propone un comando para ejecutar
             out = run_command(block["content"], origen="ia")
@@ -1614,6 +1628,10 @@ COMANDOS = [
     ("/ver", "Lee la última respuesta completa con scroll", False),
     ("/ui", "Activa o desactiva el banner fijo", False),
     ("/clear", "Borra el historial y limpia la pantalla (deja el banner)", False),
+    ("/compact", "Resume el historial para ahorrar contexto", False),
+    ("/context", "Muestra cuántos tokens usas", False),
+    ("/diff", "Muestra los cambios de git con colores", False),
+    ("/rewind", "Deshace el último cambio hecho por el agente", False),
     ("/help", "Muestra la ayuda", False),
     ("/exit", "Sale de ChronoCode", False),
 ]
@@ -1678,6 +1696,76 @@ def leer_linea():
             pass                              # si prompt_toolkit falla, entrada básica
     return console.input("[bold green]> [/]")
 
+def _compactar_historial():
+    """/compact: resume la conversación con el primer proveedor disponible."""
+    from context_manager import ContextManager
+    providers = available_providers()
+    if not providers:
+        err("No hay proveedores configurados.")
+        return
+    cm = ContextManager()
+    cm.mensajes = list(STATE.history)
+    if len(cm.mensajes) <= 6:
+        info("Hay muy pocos mensajes para compactar.")
+        return
+
+    def resumir(prompt):
+        res = _run_providers(providers, [{"role": "user", "content": prompt}])
+        return res.text if res else ""
+
+    if cm.compact_history(resumir, keep_last=6):
+        STATE.history = cm.mensajes
+        ok("Historial compactado.")
+    else:
+        warn("No se pudo compactar (sin respuesta del modelo o historial corto).")
+
+
+def _mostrar_contexto():
+    """/context: tokens estimados frente al límite."""
+    from context_manager import ContextManager
+    cm = ContextManager()
+    cm.mensajes = list(STATE.history)
+    usados = cm.estimate_tokens()
+    limite = cm.limite_tokens
+    porcentaje = min(100, int(usados * 100 / limite))
+    barra = "█" * (porcentaje // 5) + "░" * (20 - porcentaje // 5)
+    texto = Text(f"Tokens estimados: {usados:,} / {limite:,}  ({porcentaje}%)\n"
+                 f"{barra}\nMensajes en el historial: {len(STATE.history)}")
+    console.print(Panel(texto, title="Contexto", title_align="left",
+                        border_style="cyan", expand=False))
+
+
+def _mostrar_diff():
+    """/diff: muestra git diff con colores."""
+    try:
+        r = subprocess.run(["git", "diff"], capture_output=True, text=True,
+                           timeout=20, cwd=os.getcwd())
+    except (OSError, subprocess.TimeoutExpired) as e:
+        err(f"No se pudo ejecutar git: {e}")
+        return
+    if r.returncode != 0:
+        err((r.stderr or "git diff falló").strip())
+        return
+    salida = r.stdout.strip()
+    if not salida:
+        info("No hay cambios sin confirmar.")
+        return
+    if len(salida) > 20000:
+        salida = salida[:20000] + "\n[... diff recortado ...]"
+    console.print(Panel(Syntax(salida, "diff", theme="ansi_dark", word_wrap=True),
+                        title="git diff", title_align="left", border_style="cyan"))
+
+
+def _restaurar_cambio():
+    """/rewind: deshace el último cambio hecho por una herramienta."""
+    import tools
+    mensaje = tools.rewind()
+    if mensaje.startswith("ERROR"):
+        err(mensaje)
+    else:
+        ok(mensaje)
+
+
 HELP = """Comandos (escribe / para ver el menú y filtrar al teclear):
   /file RUTA     Cambia el archivo de contexto
   /run CMD       Ejecuta un comando de la terminal (atajo: !CMD)
@@ -1740,6 +1828,14 @@ def _main():
                 info("Banner fijo desactivado. Usa /ui para volver a activarlo.")
             else:
                 UI.iniciar(UI.detalle_idle)
+        elif low == "/compact":
+            _compactar_historial()
+        elif low == "/context":
+            _mostrar_contexto()
+        elif low == "/diff":
+            _mostrar_diff()
+        elif low == "/rewind":
+            _restaurar_cambio()
         elif low == "/clear":
             STATE.history.clear()
             STATE.ultima = ""
