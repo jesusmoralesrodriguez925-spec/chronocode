@@ -1073,6 +1073,50 @@ frame_idle_blink = [          # parpadea y flota un renglón más abajo
     "▀▀▀ ██████████ ▀▀▀   ",
     "    ▀████████▀       ",
 ]
+frame_hands_up = [           # manos levantadas
+    "    ▄████████▄       ",
+    "███ ██  ██  ██ ███   ",
+    "    ██████████       ",
+    "    ██████████       ",
+    "    ▀████████▀       ",
+    "                     ",
+]
+frame_look_left = [           # ojos mirando a la izquierda
+    "    ▄████████▄       ",
+    "    ██░ ██░ ██       ",
+    "███ ██████████ ███   ",
+    "▀▀▀ ██████████ ▀▀▀   ",
+    "    ▀████████▀       ",
+    "                     ",
+]
+frame_look_right = [          # ojos mirando a la derecha
+    "    ▄████████▄       ",
+    "    ██ ░██ ░██       ",
+    "███ ██████████ ███   ",
+    "▀▀▀ ██████████ ▀▀▀   ",
+    "    ▀████████▀       ",
+    "                     ",
+]
+IDLE_CICLO = [              # secuencia en reposo (cada fotograma dura 0.3 s)
+    frame_idle, frame_idle, frame_idle, frame_idle_blink, frame_idle,
+    frame_hands_up, frame_idle, frame_look_left, frame_idle, frame_look_right,
+    frame_idle, frame_hands_up,
+]
+
+
+def _frame_dormir(n):
+    """Ojos cerrados y n letras z (1 a 3)."""
+    zs = "z" * n
+    return [
+        ("    ▄████████▄  " + zs).ljust(21),
+        "    ██▀▀██▀▀██       ",
+        "███ ██████████ ███   ",
+        "▀▀▀ ██████████ ▀▀▀   ",
+        "    ▀████████▀       ",
+        "                     ",
+    ]
+
+
 frame_thinking = [            # mira hacia arriba, con "?" y puntos de carga
     "    ▄████████▄    ?  ",
     "    ██▄▄██▄▄██    ·  ",
@@ -1097,20 +1141,20 @@ frame_thinking_3 = [
     "    ▀████████▀       ",
     "                     ",
 ]
-frame_happy = [               # sonrisa y signos de exclamación
+frame_happy = [               # ojos felices, sin boca
     "!   ▄████████▄    !  ",
-    "    ██▄▄██▄▄██       ",
+    "    ██▀▀██▀▀██       ",
     "███ ██████████ ███   ",
-    "▀▀▀ ██▄▀▀▀▀▄██ ▀▀▀   ",
+    "▀▀▀ ██████████ ▀▀▀   ",
     "    ▀████████▀       ",
     "                     ",
 ]
-frame_happy_2 = [             # con las manos arriba
+frame_happy_2 = [             # con las manos arriba, sin boca
     "                     ",
     "!   ▄████████▄    !  ",
     "███ ██▄▄██▄▄██ ███   ",
     "▀▀▀ ██████████ ▀▀▀   ",
-    "    ██▄▀▀▀▀▄██       ",
+    "    ██████████       ",
     "    ▀████████▀       ",
 ]
 
@@ -1176,6 +1220,14 @@ def _render_lineas(frame, estado, detalle, cols, compacto):
     return lineas
 
 
+def _idle_frame(tick, ultimo_uso):
+    """Reposo: parpadea, mueve las manos y mira a los lados; tras 20 s sin pedidos, duerme."""
+    if time.monotonic() - ultimo_uso >= 20:
+        n = [1, 2, 3][tick] if tick < 3 else [2, 3][(tick - 3) % 2]
+        return _frame_dormir(n)
+    return IDLE_CICLO[tick % len(IDLE_CICLO)]
+
+
 class BannerFijo:
     """Banner fijo arriba (filas 1..alto) + región de scroll para el chat debajo.
     Un hilo redibuja el banner en su sitio (guardar cursor -> dibujar -> restaurar cursor),
@@ -1193,6 +1245,7 @@ class BannerFijo:
         self.hasta = None          # instante en que vuelve a "idle"
         self.tick = 0
         self._ultimo = None
+        self.ultimo_uso = time.monotonic()
         self._stop = threading.Event()
         self._thread = None
         self._atexit = False
@@ -1298,6 +1351,7 @@ class BannerFijo:
 
     def estado(self, nombre, detalle=None, volver_a_idle_en=None):
         """Cambia el estado del banner EN SU SITIO (sin imprimir cajas nuevas)."""
+        self.ultimo_uso = time.monotonic()
         if not self.activo:
             return
         with self._slock:
@@ -1318,13 +1372,16 @@ class BannerFijo:
         with self._slock:
             estado, detalle, tick = self.estado_nombre, self.detalle_txt, self.tick
             compacto, cols = self.compacto, self.dim[0]
-        frames = (FRAMES_MINI if compacto else FRAMES)[ESTADOS[estado][0]]
-        idx = (1 if tick % 9 == 8 else 0) if estado == "idle" else tick % len(frames)
-        clave = (estado, idx, detalle, self.dim, compacto)
+        if estado == "idle" and not compacto:
+            frame = _idle_frame(tick, self.ultimo_uso)
+        else:
+            frames = (FRAMES_MINI if compacto else FRAMES)[ESTADOS[estado][0]]
+            frame = frames[1 if tick % 9 == 8 else 0] if estado == "idle" else frames[tick % len(frames)]
+        clave = (estado, tuple(frame), detalle, self.dim, compacto)
         if not forzar and clave == self._ultimo:
             return
         self._ultimo = clave
-        lineas = _render_lineas(frames[idx], estado, detalle, cols, compacto)
+        lineas = _render_lineas(frame, estado, detalle, cols, compacto)
         seq = "\x1b7" + "".join(f"\x1b[{n};1H\x1b[2K{l}\x1b[0m"
                                 for n, l in enumerate(lineas, 1)) + "\x1b8"
         with self._wlock:
@@ -1566,6 +1623,7 @@ def _main():
         try:
             console.print()
             line = leer_linea().strip()
+            UI.ultimo_uso = time.monotonic()
         except EOFError:
             console.print()
             break
