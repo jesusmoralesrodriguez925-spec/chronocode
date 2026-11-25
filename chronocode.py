@@ -1264,7 +1264,6 @@ class BannerFijo:
         self._wlock = getattr(console, "_lock", None) or threading.RLock()  # escritura en pantalla
 
     def _soporta(self):
-        return False   # banner estático: el historial de la terminal sigue usable
         if os.environ.get("CHRONO_UI", "").lower() == "simple":
             return False
         if not (console.is_terminal and sys.stdin.isatty()):
@@ -1339,7 +1338,6 @@ class BannerFijo:
                 self._escribir("\x1b[{};1H".format(self.alto + 1))
         else:
             console.clear()
-            console.print(_header_renderable(FRAMES["idle"][0], "idle", self.detalle_idle, False))
 
     def pausar(self):
         """Libera la pantalla (p. ej. para un paginador o un texto largo)."""
@@ -1522,7 +1520,7 @@ def _terminal_real():
 
 def pantalla_alternativa(activar):
     if activar and not _ALT["activa"]:
-        if not _terminal_real() or os.environ.get("CHRONO_ALT", "0") != "1":
+        if not _terminal_real() or os.environ.get("CHRONO_ALT", "1") == "0":
             return
         if os.name == "nt":
             os.system("")             # activa las secuencias ANSI en Windows 10+
