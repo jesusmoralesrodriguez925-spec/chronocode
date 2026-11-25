@@ -219,6 +219,9 @@ def _modelos(nombre):
             uniq.append(m)
     return uniq
 
+LIVE_STREAM = {"on": False}  # streaming desactivado   # True mientras se muestra la respuesta en vivo
+
+
 class StreamResult:
     def __init__(self, provider=""):
         self.provider = provider
@@ -657,6 +660,14 @@ def _consume_sse(r, res, extract):
                 return fail(f"error del proveedor: {error}")
             if piece:
                 res.text += piece
+                if getattr(res, "live", False):
+                    if not getattr(res, "started", False):
+                        res.started = True
+                        UI.congelar()
+                        console.print()
+                        console.print(Text(f"ChronoCode [{res.provider}]:", style="bold blue"))
+                    sys.stdout.write(piece)
+                    sys.stdout.flush()
             if done:
                 res.complete = True
     except requests.exceptions.Timeout:
@@ -712,6 +723,7 @@ def _run_providers(providers, messages):
         for model in prov["models"]:
             for attempt in range(1, MAX_RETRIES + 1):
                 res = StreamResult(prov["name"])
+                res.live = LIVE_STREAM["on"]
                 url, headers, payload, extract = prov["build"](prov["key"], model, messages)
                 try:
                     success, reason, wait = _http_request(url, headers, payload, extract, res)
@@ -992,8 +1004,8 @@ def _respuesta_agentica(user_text):
         if isinstance(e, KeyboardInterrupt):
             raise
         actualizar_banner("idle")
-        warn(f"[{prov['name']}] vía de herramientas no disponible ({type(e).__name__}: {e}). "
-             "Uso el modo clásico.")
+        resumen = str(e).strip().splitlines()[0][:100] if str(e).strip() else type(e).__name__
+        warn(f"[{prov['name']}] modo de herramientas no disponible ({resumen}). Uso el modo clásico.")
         return None
 
     actualizar_banner("listo", volver_a_idle_en=2.5)
@@ -1008,7 +1020,12 @@ def _respuesta_agentica(user_text):
 def ask_model(user_text):
     res = _respuesta_agentica(user_text)
     if res is None:
-        res = get_llm_response(user_text)
+        try:
+            res = get_llm_response(user_text)
+        finally:
+            LIVE_STREAM["on"] = False
+            if UI.activo:
+                UI.descongelar()
     if res is None:
         return
     UI.congelar()
@@ -1326,6 +1343,7 @@ class BannerFijo:
         self._wlock = getattr(console, "_lock", None) or threading.RLock()  # escritura en pantalla
 
     def _soporta(self):
+        return False   # banner estático: el historial de la terminal sigue usable
         if os.environ.get("CHRONO_UI", "").lower() == "simple":
             return False
         if not (console.is_terminal and sys.stdin.isatty()):
@@ -1626,7 +1644,6 @@ COMANDOS = [
     ("/key", "Añade o cambia una API Key", False),
     ("/proveedores", "Muestra los proveedores y cuáles tienen clave", False),
     ("/ver", "Lee la última respuesta completa con scroll", False),
-    ("/ui", "Activa o desactiva el banner fijo", False),
     ("/clear", "Borra el historial y limpia la pantalla (deja el banner)", False),
     ("/compact", "Resume el historial para ahorrar contexto", False),
     ("/context", "Muestra cuántos tokens usas", False),
@@ -1772,7 +1789,6 @@ HELP = """Comandos (escribe / para ver el menú y filtrar al teclear):
   /key           Añade o cambia una API Key
   /proveedores   Muestra los proveedores y cuáles tienen clave
   /ver           Lee la última respuesta completa con scroll
-  /ui            Activa o desactiva el banner fijo
   /clear         Borra el historial y limpia la pantalla (deja el banner)
   /help          Esta ayuda
   /exit          Salir
@@ -1822,12 +1838,6 @@ def _main():
             _imprimir_largo(tabla_proveedores())
         elif low == "/ver":
             ver_ultima_respuesta()
-        elif low == "/ui":
-            if UI.activo:
-                UI.desactivar()
-                info("Banner fijo desactivado. Usa /ui para volver a activarlo.")
-            else:
-                UI.iniciar(UI.detalle_idle)
         elif low == "/compact":
             _compactar_historial()
         elif low == "/context":
