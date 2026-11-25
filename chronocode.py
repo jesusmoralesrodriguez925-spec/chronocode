@@ -1343,6 +1343,7 @@ class BannerFijo:
         self._wlock = getattr(console, "_lock", None) or threading.RLock()  # escritura en pantalla
 
     def _soporta(self):
+        return False   # banner de texto una sola vez, sin animación
         return False   # banner estático: el historial de la terminal sigue usable
         if os.environ.get("CHRONO_UI", "").lower() == "simple":
             return False
@@ -1600,7 +1601,7 @@ def _terminal_real():
 
 def pantalla_alternativa(activar):
     if activar and not _ALT["activa"]:
-        if not _terminal_real() or os.environ.get("CHRONO_ALT", "1") == "0":
+        if not _terminal_real() or os.environ.get("CHRONO_ALT", "0") != "1":
             return
         if os.name == "nt":
             os.system("")             # activa las secuencias ANSI en Windows 10+
@@ -1873,9 +1874,74 @@ def _main():
             except Exception as e:
                 err(f"Error inesperado: {type(e).__name__}: {e}")
 
+def _main_tui():
+    """Interfaz de pantalla completa (tui.py): banner fijo, chat con scroll y entrada abajo."""
+    import tui as _tui
+    from tui import Tui
+
+    ui = Tui(IDLE_CICLO, [frame_thinking], on_submit=_procesar_tui,
+             completer=SlashCompleter() if PT_OK else None,
+             proveedores_texto="Proveedores: " + " > ".join(p["name"] for p in available_providers()))
+    _tui.TUI = ui
+    STATE_TUI["ui"] = ui
+    ui.escribir("Escribe / para ver los comandos. Ctrl+C para salir.", "dim")
+    if len(sys.argv) > 1:
+        ui.escribir(f"Archivo de trabajo: {' '.join(sys.argv[1:])}", "dim")
+        set_context_file(" ".join(sys.argv[1:]))
+    ui.ejecutar()
+
+
+STATE_TUI = {"ui": None}
+
+
+def _procesar_tui(texto):
+    """Se ejecuta en un hilo aparte al pulsar Enter en la interfaz."""
+    ui = STATE_TUI["ui"]
+    ui.escribir(f"> {texto}", "usuario")
+    low = texto.lower()
+    if low in ("/exit", "/quit", "exit", "salir"):
+        ui.salir()
+        return
+    if low == "/help":
+        ui.escribir(HELP, "dim")
+    elif low == "/clear":
+        STATE.history.clear()
+        STATE.ultima = ""
+        ui.escribir("Historial borrado.", "ok")
+    elif low == "/proveedores":
+        for linea in str(tabla_proveedores().renderables[-1].plain).splitlines():
+            ui.escribir(linea, "dim")
+    elif texto.startswith("/") and not low.startswith(("/run ", "/file")):
+        ui.escribir("Comando desconocido. Escribe / para ver el menú o /help.", "error")
+    elif low.startswith("/run ") or texto.startswith("!"):
+        cmd = texto[5:] if low.startswith("/run ") else texto[1:]
+        out = run_command(cmd, origen="usuario")
+        if out:
+            STATE.history.append({"role": "user", "content": "Salida del comando que ejecuté:\n" + truncate(out)})
+    elif low.startswith("/file"):
+        arg = texto[5:].strip()
+        if arg:
+            set_context_file(arg)
+            ui.escribir(f"Archivo cargado: {arg}", "ok")
+    else:
+        ui.estado("pensando", "Ctrl+C para cortar")
+        try:
+            ask_model(texto)
+        except Exception as e:
+            ui.escribir(f"Error inesperado: {type(e).__name__}: {e}", "error")
+        finally:
+            ui.estado("idle")
+
+
 def main():
-    termux_permisos()           # solo en Termux, una vez
-    pantalla_alternativa(True)  # ventana limpia; al salir la terminal vuelve a la normalidad
+    termux_permisos()
+    if os.environ.get("CHRONO_UI", "clasico") == "tui":
+        try:
+            _main_tui()
+            return
+        except Exception as e:
+            print(f"Interfaz de pantalla completa no disponible ({type(e).__name__}: {e}). Uso el modo clásico.")
+    pantalla_alternativa(True)
     try:
         _main()
     finally:
