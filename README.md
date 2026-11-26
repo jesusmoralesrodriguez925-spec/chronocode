@@ -157,3 +157,7 @@ Envía únicamente USDT por la red BEP20. Otras redes pueden provocar la pérdid
 ## Licencia
 
 Distribuido bajo licencia MIT. Las contribuciones son bienvenidas: abre un issue o un pull request.
+
+## Versión anterior
+
+La versión 1 de ChronoCode está en la carpeta legacy/. La versión actual es chronocode_v2.py.
