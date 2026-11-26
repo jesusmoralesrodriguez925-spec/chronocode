@@ -117,7 +117,22 @@ def ruta_permitida(path):
     return True, ""
 
 
+ESTADO_SPINNER = {"activo": None}
+
+
 def confirmar(pregunta):
+    """Pregunta s/N. Pausa el spinner para que no tape la respuesta."""
+    spinner = ESTADO_SPINNER["activo"]
+    if spinner is not None:
+        spinner.stop()
+    try:
+        return _leer_si_no(pregunta)
+    finally:
+        if spinner is not None:
+            spinner.start()
+
+
+def _leer_si_no(pregunta):
     try:
         return input(f"{pregunta} [s/N]: ").strip().lower() in ("s", "si", "sí", "y", "yes")
     except (EOFError, KeyboardInterrupt):
@@ -335,8 +350,14 @@ def main():
                                "explicarte cómo proteger un sistema propio.", style="yellow"))
             continue
         historial.append({"role": "user", "content": linea})
-        with console.status("ChronoCode pensando...", spinner="dots"):
+        estado = console.status("ChronoCode pensando...", spinner="dots")
+        ESTADO_SPINNER["activo"] = estado
+        estado.start()
+        try:
             respuesta = responder(historial)
+        finally:
+            estado.stop()
+            ESTADO_SPINNER["activo"] = None
         console.print(respuesta)
 
 
