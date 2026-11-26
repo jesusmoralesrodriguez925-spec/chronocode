@@ -18,13 +18,14 @@ ChronoCode es un agente de programación para la terminal. Trae tu propia API Ke
 
 ## Características
 
-- **Interfaz de terminal:** banner fijo con una mascota animada que cambia de estado (reposo, pensando, ejecutando, listo).
-- **Menú de comandos:** escribe `/` y aparece el menú con filtrado en tiempo real.
-- **Entrada de texto fluida:** mensajes largos sin cortes e historial con las flechas.
-- **Pantalla propia:** se abre en una pantalla dedicada, como `vim` o `nano`, y al salir devuelve la terminal tal como estaba.
-- **Comandos del sistema con control:** el agente puede proponer comandos de tu sistema; cada uno pasa por una denylist, una revisión por IA y tu confirmación antes de ejecutarse.
-- **12 proveedores de IA:** Gemini, Groq, OpenRouter, OpenAI, Anthropic, DeepSeek, Grok (xAI), Hugging Face, Meta AI, Mistral AI, Cohere y Perplexity. Si uno falla, usa automáticamente el siguiente que tengas configurado.
-- **Permisos en Termux:** solicita el acceso al almacenamiento una sola vez.
+- **Conversación en la terminal:** las respuestas salen con formato Markdown y bloques de código resaltados. El historial se desplaza con el dedo o con la rueda, como en cualquier terminal.
+- **Banner único:** la mascota y los datos del agente aparecen una vez al abrirlo.
+- **Herramientas de trabajo:** el agente puede leer, buscar, crear y editar archivos de tu proyecto, y ejecutar comandos. Cada cambio pide tu confirmación.
+- **Copias de seguridad y deshacer:** antes de cada cambio se guarda una copia en `.chronocode_backups/`, y `/rewind` deshace el último cambio.
+- **Control del contexto:** `/context` muestra cuánto espacio usa la conversación, y `/compact` la resume cuando se llena.
+- **Revisión de cambios:** `/diff` muestra los cambios de git con colores.
+- **Seguridad:** cada comando pasa por una denylist de comandos destructivos, una revisión por IA y tu confirmación.
+- **Varios proveedores de IA:** Gemini, Groq, OpenRouter, OpenAI, Anthropic, DeepSeek, Grok (xAI), Hugging Face, Meta AI, Mistral AI, Cohere y Perplexity. Si uno falla, el agente usa el siguiente que tengas configurado.
 
 ## Instalación
 
@@ -63,7 +64,7 @@ En el primer inicio te pedirá tu API Key y la guardará en un archivo `.env` lo
 
 | Proveedor | Dónde obtenerla | Notas |
 |---|---|---|
-| Gemini | [aistudio.google.com/apikey](https://aistudio.google.com/apikey) | Capa gratuita con límites diarios |
+| Gemini | [aistudio.google.com/apikey](https://aistudio.google.com/apikey) | Capa gratuita con límites por minuto y por día |
 | Groq | [console.groq.com/keys](https://console.groq.com/keys) | Capa gratuita con límites por minuto |
 | OpenRouter | [openrouter.ai/keys](https://openrouter.ai/keys) | Modelos con sufijo `:free` |
 
@@ -71,20 +72,39 @@ Puedes añadir más proveedores en cualquier momento con `/key`.
 
 ## Comandos
 
+Escribe `/` para ver el menú con filtrado en tiempo real.
+
 | Comando | Acción |
 |---|---|
-| `/` | Muestra el menú de comandos |
 | `/file RUTA` | Cambia el archivo de contexto |
 | `/run CMD` o `!CMD` | Ejecuta un comando (pide confirmación) |
 | `/key` | Añade o cambia una API Key |
 | `/proveedores` | Muestra los proveedores activos y sus modelos |
-| `/ver` | Lee la última respuesta completa con scroll |
-| `/ui` | Activa o desactiva el banner fijo |
+| `/ver` | Muestra la última respuesta completa |
+| `/context` | Muestra el espacio que usa la conversación |
+| `/compact` | Resume la conversación para liberar espacio |
+| `/diff` | Muestra los cambios de git con colores |
+| `/rewind` | Deshace el último cambio hecho por el agente |
 | `/clear` | Borra el historial de la conversación |
 | `/help` | Muestra la ayuda |
 | `/exit` | Sale del agente |
 
-Cualquier otro texto se envía a la IA. Por ejemplo, escribe `borra el archivo hola.py`: la IA propone el comando, lo revisa y te pide confirmación antes de ejecutarlo.
+Cualquier otro texto se envía a la IA. Por ejemplo, escribe `crea un archivo prueba.txt con la frase hola mundo`: el agente muestra el contenido, te pide confirmación y lo guarda solo si aceptas.
+
+## Herramientas del agente
+
+Cuando el proveedor lo permite, el agente puede usar estas herramientas en varios pasos para completar una tarea:
+
+| Herramienta | Qué hace | ¿Pide confirmación? |
+|---|---|---|
+| `read_file` | Lee un archivo | No |
+| `glob` | Busca archivos por patrón | No |
+| `grep` | Busca texto dentro de los archivos | No |
+| `edit_file` | Cambia un texto exacto dentro de un archivo | Sí, muestra el cambio antes |
+| `write_file` | Crea o reemplaza un archivo | Sí, muestra el contenido antes |
+| `run_command` | Ejecuta un comando de terminal | Sí, después de la denylist |
+
+Las herramientas funcionan con los proveedores compatibles con la API de OpenAI (Groq, OpenRouter, OpenAI, DeepSeek, Grok, Mistral, Perplexity, Hugging Face, Meta AI, Cohere y Gemini). Con Anthropic, el agente responde en modo conversación, sin herramientas.
 
 ## Configuración (`.env`)
 
@@ -114,30 +134,54 @@ CHRONO_READ_TIMEOUT=120
 
 # Confirmar antes de ejecutar comandos (1 = sí, 0 = no)
 CHRONO_CONFIRMAR=1
+
+# Pantalla propia tipo vim/nano (1 = activada, 0 = desactivada, predeterminado 0)
+CHRONO_ALT=0
 ```
 
 Las variables `*_API_KEY` no se pasan a los comandos que ejecuta el agente.
 
 ## Seguridad
 
-- **Confirmación:** ningún comando se ejecuta sin tu aprobación. Con `CHRONO_CONFIRMAR=0` se omite, pero la denylist y la revisión por IA siguen activas.
-- **Denylist:** bloquea comandos destructivos o de sistema, incluidos los que intentan esconderse en pipes, `bash -c` o `sudo`.
+- **Confirmación:** ningún archivo se escribe y ningún comando se ejecuta sin tu aprobación. Con `CHRONO_CONFIRMAR=0` se omite la confirmación de comandos, pero la denylist y la revisión por IA siguen activas.
+- **Denylist:** bloquea comandos destructivos o de sistema (por ejemplo `rm -rf /`, `mkfs`, `dd` sobre discos, `shutdown`, `sudo`), incluidos los que intentan esconderse en tuberías, `bash -c` o variables.
 - **Revisión por IA:** los comandos que propone el modelo se evalúan antes de mostrarse.
-- **Escritura de archivos:** el modelo solo puede guardar archivos dentro del directorio de trabajo.
+- **Escritura de archivos:** el modelo solo puede escribir dentro del directorio de trabajo, y nunca en archivos sensibles como `.env` o `.ssh`.
+- **Copias de seguridad:** cada cambio se respalda antes de aplicarse, y `/rewind` lo deshace.
 - **Secretos:** el archivo `.env` y las claves no se envían a los comandos ni se suben al repositorio.
 
-Estas capas reducen el riesgo, pero no sustituyen tu criterio: lee cada comando antes de aceptarlo.
+Estas capas reducen el riesgo, pero no sustituyen tu criterio: lee cada comando y cada cambio antes de aceptarlo.
+
+## Cambios retirados y por qué
+
+Algunas funciones de versiones anteriores se quitaron o se desactivaron. Esto es lo que cambió y el motivo:
+
+- **Banner animado con la mascota en movimiento:** se quitó del chat. Mantener la mascota animada dentro de la misma pantalla que el historial hacía que la terminal se redibujara y el scroll con el dedo dejara de funcionar. Ahora el banner aparece una sola vez, como texto.
+- **Pantalla propia (tipo vim) por defecto:** se desactivó. En esa pantalla la terminal no guarda historial, así que no se podía subir para leer respuestas anteriores. Sigue disponible con `CHRONO_ALT=1`.
+- **Comando `/ui`:** se quitó porque el banner fijo ya no existe.
+- **Respuesta en vivo (streaming):** se desactivó. Mostraba el texto sin formato Markdown (con `##` y `**` visibles) y mezclaba la respuesta con el historial. Ahora la respuesta aparece completa y con formato.
+- **Lista fija de comandos permitidos:** se reemplazó por la denylist, la revisión por IA y la confirmación. Una lista fija impedía usar comandos de Linux normales, y con estas tres capas puedes ejecutar más comandos sin renunciar al control.
+- **Interfaz de pantalla completa con prompt_toolkit (`tui.py`):** se probó, pero no se incluye en el uso normal porque mostraba errores de pantalla en Termux. El archivo no forma parte del proyecto.
 
 ## Estructura del proyecto
 
 ```
 chronocode/
+├── .github/workflows/     # comprobación de sintaxis en cada cambio
 ├── assets/
-│   └── chronocode.png   # logo del README
-├── chronocode.py        # agente (un solo archivo)
-├── install.sh           # crea el comando global `chronocode`
-├── README.md
-└── .gitignore           # incluye .env
+│   └── chronocode.png     # logo del README
+├── agent_loop.py          # bucle agéntico: el modelo pide herramientas y recibe resultados
+├── chronocode.py          # agente principal: comandos, banner, respuestas y seguridad
+├── context_manager.py     # historial de la conversación y compactación
+├── tools.py               # herramientas del agente y copias de seguridad
+├── install.sh             # crea el comando global `chronocode`
+├── requirements.txt       # dependencias
+├── .env.example           # plantilla de configuración sin claves
+├── .gitignore             # ignora .env, copias y archivos temporales
+├── CONTRIBUTING.md        # cómo contribuir
+├── SECURITY.md            # cómo reportar vulnerabilidades
+├── LICENSE                # licencia MIT
+└── README.md
 ```
 
 ## Apoya el proyecto
