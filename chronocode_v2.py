@@ -285,6 +285,8 @@ def responder(historial):
             nombre = llamada["function"]["name"]
             print(f"  → {nombre}")
             resultado = "ERROR: argumentos inválidos." if args is None else ejecutar(nombre, args)
+            if resultado.startswith(("BLOQUEADO", "CANCELADO")):
+                console.print(Text(f"⛔ {nombre}: {resultado}", style="yellow"))
             mensajes.append({"role": "tool", "tool_call_id": llamada["id"], "content": resultado})
     return "Se alcanzó el límite de pasos para esta petición."
 
