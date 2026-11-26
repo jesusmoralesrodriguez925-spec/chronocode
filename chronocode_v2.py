@@ -103,6 +103,20 @@ def es_prohibido(cmd):
     return None
 
 
+SENSIBLES = {".env", ".ssh", ".git", ".netrc", ".aws", ".gnupg"}
+
+
+def ruta_permitida(path):
+    """Solo rutas dentro de la carpeta de trabajo y sin archivos sensibles."""
+    p = Path(path).expanduser().resolve()
+    base = Path.cwd().resolve()
+    if p != base and base not in p.parents:
+        return False, "la ruta está fuera de la carpeta de trabajo"
+    if any(parte in SENSIBLES for parte in p.parts):
+        return False, "es un archivo sensible"
+    return True, ""
+
+
 def confirmar(pregunta):
     try:
         return input(f"{pregunta} [s/N]: ").strip().lower() in ("s", "si", "sí", "y", "yes")
@@ -119,6 +133,9 @@ def read_file(path):
 
 
 def write_file(path, content):
+    ok, motivo = ruta_permitida(path)
+    if not ok:
+        return f"BLOQUEADO: {motivo}."
     print(f"\n--- Escribir {path} ---\n{content[:1500]}\n")
     if not confirmar(f"¿Guardar {path}?"):
         return "CANCELADO por el usuario."
@@ -131,6 +148,9 @@ def write_file(path, content):
 
 
 def edit_file(path, old_string, new_string):
+    ok, motivo = ruta_permitida(path)
+    if not ok:
+        return f"BLOQUEADO: {motivo}."
     try:
         texto = Path(path).read_text(encoding="utf-8")
     except OSError as e:
@@ -308,6 +328,11 @@ def main():
         if linea == "/clear":
             historial.clear()
             print("Chat borrado.")
+            continue
+        if any(tema in linea.lower() for tema in TEMAS_NO_PERMITIDOS):
+            console.print(Text("No puedo ayudar con eso: es una actividad ilegal o dañina. "
+                               "Si es para aprender ciberseguridad de forma legal, puedo "
+                               "explicarte cómo proteger un sistema propio.", style="yellow"))
             continue
         historial.append({"role": "user", "content": linea})
         with console.status("ChronoCode pensando...", spinner="dots"):
