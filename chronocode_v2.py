@@ -16,6 +16,7 @@ from dotenv import load_dotenv
 from rich.align import Align
 from rich.console import Console
 from rich.layout import Layout
+from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.text import Text
 try:
@@ -358,7 +359,7 @@ def main():
         finally:
             estado.stop()
             ESTADO_SPINNER["activo"] = None
-        console.print(respuesta)
+        console.print(Markdown(respuesta, code_theme="monokai"))
 
 
 if __name__ == "__main__":
