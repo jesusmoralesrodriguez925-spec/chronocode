@@ -59,7 +59,7 @@ def mostrar_banner(proveedores):
 # ---------------- Proveedores (BYOK) ----------------
 PROVEEDORES = [
     {"nombre": "Groq", "env": "GROQ_API_KEY", "url": "https://api.groq.com/openai/v1/chat/completions",
-     "modelo": "llama-3.3-70b-versatile"},
+     "modelo": "openai/gpt-oss-120b"},
     {"nombre": "OpenRouter", "env": "OPENROUTER_API_KEY", "url": "https://openrouter.ai/api/v1/chat/completions",
      "modelo": "meta-llama/llama-3.3-70b-instruct:free"},
     {"nombre": "OpenAI", "env": "OPENAI_API_KEY", "url": "https://api.openai.com/v1/chat/completions",
