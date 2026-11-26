@@ -4,184 +4,145 @@
 
 # ChronoCode
 
-**El agente de IA de código abierto que corre en tu terminal.**
+**Un agente de programación con IA para tu terminal, de código abierto.**
 
 [![Licencia: MIT](https://img.shields.io/badge/licencia-MIT-22c55e.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.9%2B-3776ab.svg)](https://www.python.org/)
-[![Plataformas](https://img.shields.io/badge/plataformas-Termux%20%7C%20Windows%20%7C%20macOS%20%7C%20Linux-22c55e.svg)](#instalación)
+[![Plataforma](https://img.shields.io/badge/plataforma-Termux%20(Android)-22c55e.svg)](#instalación)
 
 [Canal de Telegram](https://t.me/chronocode_dv) · [X](https://x.com/chronocodedv) · [Reportar un problema](https://github.com/jesusmoralesrodriguez925-spec/chronocode/issues)
 
 </div>
 
-ChronoCode es un agente de programación para la terminal. Trae tu propia API Key (BYOK), no depende de ningún servidor propio y funciona en Android (Termux), Windows, macOS y Linux. Tus claves y tu código solo se envían al proveedor de IA que elijas.
+ChronoCode lee tu proyecto, propone cambios, crea y edita archivos, ejecuta pruebas y comandos, y te pide confirmación antes de cada acción que modifique algo. Trae tu propia API Key (BYOK): tus claves y tu código solo se envían al proveedor de IA que elijas.
 
-## Características
+> **Estado:** versión 2, en uso. Hoy se prueba sobre todo en Termux (Android). Windows, macOS y Linux no están verificados en esta versión.
 
-- **Conversación en la terminal:** las respuestas salen con formato Markdown y bloques de código resaltados. El historial se desplaza con el dedo o con la rueda, como en cualquier terminal.
-- **Banner único:** la mascota y los datos del agente aparecen una vez al abrirlo.
-- **Herramientas de trabajo:** el agente puede leer, buscar, crear y editar archivos de tu proyecto, y ejecutar comandos. Cada cambio pide tu confirmación.
-- **Copias de seguridad y deshacer:** antes de cada cambio se guarda una copia en `.chronocode_backups/`, y `/rewind` deshace el último cambio.
-- **Control del contexto:** `/context` muestra cuánto espacio usa la conversación, y `/compact` la resume cuando se llena.
-- **Revisión de cambios:** `/diff` muestra los cambios de git con colores.
-- **Seguridad:** cada comando pasa por una denylist de comandos destructivos, una revisión por IA y tu confirmación.
-- **Varios proveedores de IA:** Gemini, Groq, OpenRouter, OpenAI, Anthropic, DeepSeek, Grok (xAI), Hugging Face, Meta AI, Mistral AI, Cohere y Perplexity. Si uno falla, el agente usa el siguiente que tengas configurado.
+## Qué hace
+
+- **Conversación con formato:** las respuestas salen con títulos, negritas, tablas y bloques de código con colores.
+- **Herramientas de trabajo:** el agente puede leer archivos, crearlos, editarlos, ejecutar comandos y correr las pruebas de tu proyecto.
+- **Confirmación obligatoria:** cada escritura o comando muestra lo que va a hacer y pide `[s/N]`. Por defecto la respuesta es no.
+- **Copias de seguridad:** la versión anterior de cada archivo se guarda antes de cambiarlo.
+- **Seguridad:** rutas limitadas a la carpeta de trabajo, denylist de comandos destructivos y rechazo de peticiones ilegales.
 
 ## Instalación
 
-**Requisitos:** Python 3 y `git`.
-
-**1. Clona el repositorio**
+**Requisitos:** Python 3 y `git` en Termux.
 
 ```bash
+pkg install -y python git bc
 git clone https://github.com/jesusmoralesrodriguez925-spec/chronocode.git
 cd chronocode
-```
-
-**2. Instala las dependencias**
-
-```bash
 pip install requests python-dotenv rich prompt_toolkit
 ```
 
-En macOS o Linux usa `pip3`.
-
-**3. Crea el comando global**
+Crea tu archivo de claves (solo en tu equipo, nunca lo subas al repo):
 
 ```bash
-bash install.sh
+cp .env.example .env
 ```
 
-**4. Reinicia la terminal** (en Termux, cierra la app desde recientes) y ejecuta desde cualquier carpeta:
+Edita `.env` y pon al menos una clave, por ejemplo:
+
+```env
+GROQ_API_KEY="gsk_..."
+```
+
+Para abrir el agente desde cualquier carpeta, agrega un alias en `~/.bashrc`:
 
 ```bash
-chronocode
+echo "alias chronocode='python3 $HOME/chronocode/chronocode_v2.py'" >> ~/.bashrc
+source ~/.bashrc
 ```
 
-En el primer inicio te pedirá tu API Key y la guardará en un archivo `.env` local, con permisos solo para tu usuario.
+Luego ejecuta `chronocode`. Debe aparecer el banner con la mascota y los proveedores que tengas configurados.
 
-## Obtén una API Key
+## Proveedores de IA
 
-| Proveedor | Dónde obtenerla | Notas |
+La versión 2 usa estos proveedores, en este orden. Si uno falla, prueba el siguiente:
+
+| Proveedor | Variable en `.env` | Dónde obtener la clave |
 |---|---|---|
-| Gemini | [aistudio.google.com/apikey](https://aistudio.google.com/apikey) | Capa gratuita con límites por minuto y por día |
-| Groq | [console.groq.com/keys](https://console.groq.com/keys) | Capa gratuita con límites por minuto |
-| OpenRouter | [openrouter.ai/keys](https://openrouter.ai/keys) | Modelos con sufijo `:free` |
+| Groq | `GROQ_API_KEY` | [console.groq.com/keys](https://console.groq.com/keys) |
+| OpenRouter | `OPENROUTER_API_KEY` | [openrouter.ai/keys](https://openrouter.ai/keys) |
+| OpenAI | `OPENAI_API_KEY` | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) |
+| Gemini | `GEMINI_API_KEY` | [aistudio.google.com/apikey](https://aistudio.google.com/apikey) |
+| DeepSeek | `DEEPSEEK_API_KEY` | [platform.deepseek.com](https://platform.deepseek.com) |
 
-Puedes añadir más proveedores en cualquier momento con `/key`.
+Los planes gratuitos tienen límites de uso. Si ves `HTTP 429`, espera un momento o usa otro proveedor.
 
 ## Comandos
 
-Escribe `/` para ver el menú con filtrado en tiempo real.
-
-| Comando | Acción |
+| Comando | Qué hace |
 |---|---|
-| `/file RUTA` | Cambia el archivo de contexto |
-| `/run CMD` o `!CMD` | Ejecuta un comando (pide confirmación) |
-| `/key` | Añade o cambia una API Key |
-| `/proveedores` | Muestra los proveedores activos y sus modelos |
-| `/ver` | Muestra la última respuesta completa |
-| `/context` | Muestra el espacio que usa la conversación |
-| `/compact` | Resume la conversación para liberar espacio |
-| `/diff` | Muestra los cambios de git con colores |
-| `/rewind` | Deshace el último cambio hecho por el agente |
+| `/help` | Muestra la lista de comandos |
 | `/clear` | Borra el historial de la conversación |
-| `/help` | Muestra la ayuda |
 | `/exit` | Sale del agente |
 
-Cualquier otro texto se envía a la IA. Por ejemplo, escribe `crea un archivo prueba.txt con la frase hola mundo`: el agente muestra el contenido, te pide confirmación y lo guarda solo si aceptas.
+Escribe `/` para ver el menú con filtrado. Cualquier otro texto se envía al agente.
 
 ## Herramientas del agente
 
-Cuando el proveedor lo permite, el agente puede usar estas herramientas en varios pasos para completar una tarea:
+Cuando el modelo lo necesita, usa estas herramientas en varios pasos para completar una tarea:
 
 | Herramienta | Qué hace | ¿Pide confirmación? |
 |---|---|---|
 | `read_file` | Lee un archivo | No |
-| `glob` | Busca archivos por patrón | No |
-| `grep` | Busca texto dentro de los archivos | No |
-| `edit_file` | Cambia un texto exacto dentro de un archivo | Sí, muestra el cambio antes |
 | `write_file` | Crea o reemplaza un archivo | Sí, muestra el contenido antes |
+| `edit_file` | Cambia un texto exacto (debe aparecer una sola vez) | Sí, muestra el cambio antes |
 | `run_command` | Ejecuta un comando de terminal | Sí, después de la denylist |
+| `run_tests` | Detecta y ejecuta las pruebas del proyecto | Sí, como cualquier comando |
 
-Las herramientas funcionan con los proveedores compatibles con la API de OpenAI (Groq, OpenRouter, OpenAI, DeepSeek, Grok, Mistral, Perplexity, Hugging Face, Meta AI, Cohere y Gemini). Con Anthropic, el agente responde en modo conversación, sin herramientas.
-
-## Configuración (`.env`)
-
-```env
-GEMINI_API_KEY="AIza..."
-GROQ_API_KEY="gsk_..."
-OPENROUTER_API_KEY="sk-or-v1-..."
-OPENAI_API_KEY="sk-..."
-ANTHROPIC_API_KEY="sk-ant-..."
-DEEPSEEK_API_KEY="..."
-XAI_API_KEY="xai-..."
-HUGGINGFACE_API_KEY="hf_..."
-LLAMA_API_KEY="..."
-MISTRAL_API_KEY="..."
-COHERE_API_KEY="..."
-PERPLEXITY_API_KEY="pplx-..."
-
-# Orden de preferencia de proveedores
-CHRONO_PROVIDER_ORDER="gemini,groq"
-
-# Modelos (cámbialos sin tocar el código, p. ej. DEEPSEEK_MODEL)
-GEMINI_MODEL="gemini-flash-latest"
-
-# Tiempos de espera en segundos
-CHRONO_CONNECT_TIMEOUT=20
-CHRONO_READ_TIMEOUT=120
-
-# Confirmar antes de ejecutar comandos (1 = sí, 0 = no)
-CHRONO_CONFIRMAR=1
-
-# Pantalla propia tipo vim/nano (1 = activada, 0 = desactivada, predeterminado 0)
-CHRONO_ALT=0
-```
-
-Las variables `*_API_KEY` no se pasan a los comandos que ejecuta el agente.
+Ejemplos de peticiones:
+- `crea un script que sume dos números desde la terminal`
+- `en suma.sh cambia la validación para que acepte letras`
+- `ejecuta las pruebas del proyecto`
 
 ## Seguridad
 
-- **Confirmación:** ningún archivo se escribe y ningún comando se ejecuta sin tu aprobación. Con `CHRONO_CONFIRMAR=0` se omite la confirmación de comandos, pero la denylist y la revisión por IA siguen activas.
-- **Denylist:** bloquea comandos destructivos o de sistema (por ejemplo `rm -rf /`, `mkfs`, `dd` sobre discos, `shutdown`, `sudo`), incluidos los que intentan esconderse en tuberías, `bash -c` o variables.
-- **Revisión por IA:** los comandos que propone el modelo se evalúan antes de mostrarse.
-- **Escritura de archivos:** el modelo solo puede escribir dentro del directorio de trabajo, y nunca en archivos sensibles como `.env` o `.ssh`.
-- **Copias de seguridad:** cada cambio se respalda antes de aplicarse, y `/rewind` lo deshace.
-- **Secretos:** el archivo `.env` y las claves no se envían a los comandos ni se suben al repositorio.
+- **Carpeta de trabajo:** el agente solo escribe dentro de la carpeta desde la que lo abriste. Las rutas fuera de ella se bloquean y aparece un aviso `⛔` en pantalla.
+- **Archivos sensibles:** no escribe en `.env`, `.ssh`, `.git`, `.netrc`, `.aws` ni `.gnupg`.
+- **Denylist de comandos:** bloquea comandos destructivos o de sistema, por ejemplo `rm -rf /`, `mkfs`, `dd` sobre discos, `shutdown`, `sudo`, descargas que se ejecutan directamente con `curl | sh`, y bombas de procesos.
+- **Peticiones no permitidas:** el agente rechaza antes de llamar al modelo las peticiones sobre malware, robo de cuentas o contraseñas, ataques a sistemas de terceros, fraude y similares.
+- **Confirmación:** ningún archivo se escribe ni ningún comando se ejecuta sin tu respuesta `s`.
 
-Estas capas reducen el riesgo, pero no sustituyen tu criterio: lee cada comando y cada cambio antes de aceptarlo.
+Estas capas reducen el riesgo, pero no sustituyen tu criterio. Lee cada cambio y cada comando antes de aceptarlo.
 
-## Cambios retirados y por qué
+## Pendiente (próximas versiones)
 
-Algunas funciones de versiones anteriores se quitaron o se desactivaron. Esto es lo que cambió y el motivo:
+Lo que todavía no está en la versión 2:
 
-- **Banner animado con la mascota en movimiento:** se quitó del chat. Mantener la mascota animada dentro de la misma pantalla que el historial hacía que la terminal se redibujara y el scroll con el dedo dejara de funcionar. Ahora el banner aparece una sola vez, como texto.
-- **Pantalla propia (tipo vim) por defecto:** se desactivó. En esa pantalla la terminal no guarda historial, así que no se podía subir para leer respuestas anteriores. Sigue disponible con `CHRONO_ALT=1`.
-- **Comando `/ui`:** se quitó porque el banner fijo ya no existe.
-- **Respuesta en vivo (streaming):** se desactivó. Mostraba el texto sin formato Markdown (con `##` y `**` visibles) y mezclaba la respuesta con el historial. Ahora la respuesta aparece completa y con formato.
-- **Lista fija de comandos permitidos:** se reemplazó por la denylist, la revisión por IA y la confirmación. Una lista fija impedía usar comandos de Linux normales, y con estas tres capas puedes ejecutar más comandos sin renunciar al control.
-- **Interfaz de pantalla completa con prompt_toolkit (`tui.py`):** se probó, pero no se incluye en el uso normal porque mostraba errores de pantalla en Termux. El archivo no forma parte del proyecto.
+- **Respuestas largas** para peticiones simples: el modelo tiende a explicar de más.
+- **Tablas en pantallas estrechas:** las columnas pueden cortarse en un teléfono.
+- **Latencia:** las peticiones con varias herramientas pueden tardar.
+- **Más proveedores:** Anthropic, Mistral, Cohere, Perplexity, Hugging Face, Meta AI y Grok aún no están en esta versión.
+- **Comandos de la versión anterior:** `/file`, `/run`, `/key`, `/proveedores`, `/ver`, `/context`, `/compact`, `/diff` y `/rewind` no están en la versión 2.
+- **Otras plataformas:** Windows, macOS y Linux no están probados en esta versión.
+
+## Versión anterior
+
+La versión 1 con los comandos completos quedó guardada en el tag `respaldo-v1-antes-de-v2`. Para verla:
+
+```bash
+git checkout respaldo-v1-antes-de-v2
+```
 
 ## Estructura del proyecto
 
 ```
 chronocode/
-├── .github/workflows/     # comprobación de sintaxis en cada cambio
 ├── assets/
 │   └── chronocode.png     # logo del README
-├── agent_loop.py          # bucle agéntico: el modelo pide herramientas y recibe resultados
-├── chronocode.py          # agente principal: comandos, banner, respuestas y seguridad
-├── context_manager.py     # historial de la conversación y compactación
-├── tools.py               # herramientas del agente y copias de seguridad
-├── install.sh             # crea el comando global `chronocode`
-├── requirements.txt       # dependencias
-├── .env.example           # plantilla de configuración sin claves
-├── .gitignore             # ignora .env, copias y archivos temporales
-├── CONTRIBUTING.md        # cómo contribuir
-├── SECURITY.md            # cómo reportar vulnerabilidades
-├── LICENSE                # licencia MIT
-└── README.md
+├── chronocode_v2.py       # agente (versión actual)
+├── chronocode.py          # versión anterior (respaldo)
+├── .env.example           # plantilla de claves, sin valores reales
+├── .gitignore
+├── CONTRIBUTING.md
+├── LICENSE
+├── SECURITY.md
+├── README.md
+└── requirements.txt
 ```
 
 ## Apoya el proyecto
