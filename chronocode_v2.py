@@ -18,6 +18,12 @@ from rich.console import Console
 from rich.layout import Layout
 from rich.panel import Panel
 from rich.text import Text
+try:
+    from prompt_toolkit import PromptSession
+    from prompt_toolkit.completion import Completer, Completion
+    PT_OK = True
+except ImportError:
+    PT_OK = False
 
 load_dotenv(Path(__file__).resolve().parent / ".env")
 
@@ -247,13 +253,48 @@ def responder(historial):
     return "Se alcanzó el límite de pasos para esta petición."
 
 
+COMANDOS = [
+    ("/help", "Muestra los comandos"),
+    ("/clear", "Borra el chat"),
+    ("/exit", "Sale del agente"),
+]
+
+if PT_OK:
+    class ComandosCompleter(Completer):
+        """Al escribir "/" muestra el menú y lo filtra mientras escribes."""
+
+        def get_completions(self, document, complete_event):
+            texto = document.text_before_cursor
+            if not texto.startswith("/") or " " in texto:
+                return
+            for cmd, desc in COMANDOS:
+                if cmd.startswith(texto):
+                    yield Completion(cmd, start_position=-len(texto), display_meta=desc)
+
+    _sesion = PromptSession(completer=ComandosCompleter(), complete_while_typing=True)
+
+
+def leer_linea():
+    """Lee la petición del usuario, con menú de comandos si está disponible."""
+    if PT_OK:
+        return _sesion.prompt("\n> ").strip()
+    return input("\n> ").strip()
+
+
+def mostrar_ayuda():
+    console.print(Text("Comandos:", style="bold green"))
+    for cmd, desc in COMANDOS:
+        console.print(Text(f"  {cmd:<8} {desc}"))
+    console.print(Text("Cualquier otro texto se envía al agente.", style="dim"))
+
+
 def main():
     nombres = " > ".join(p["nombre"] for p in proveedores_activos()) or "ninguno"
     mostrar_banner(nombres)
     historial = []
     while True:
         try:
-            linea = input("\n> ").strip()
+            linea = leer_linea()
         except (EOFError, KeyboardInterrupt):
             print()
             break
@@ -261,12 +302,17 @@ def main():
             continue
         if linea in ("/exit", "salir"):
             break
+        if linea == "/help":
+            mostrar_ayuda()
+            continue
         if linea == "/clear":
             historial.clear()
             print("Chat borrado.")
             continue
         historial.append({"role": "user", "content": linea})
-        print(responder(historial))
+        with console.status("ChronoCode pensando...", spinner="dots"):
+            respuesta = responder(historial)
+        console.print(respuesta)
 
 
 if __name__ == "__main__":
