@@ -61,7 +61,6 @@ Edita `.env` y pon al menos una clave, por ejemplo `GROQ_API_KEY="gsk_..."`. Nun
 | Anthropic | `ANTHROPIC_API_KEY` | Conversión de herramientas probada; llamada real pendiente de clave |
 | Mistral AI | `MISTRAL_API_KEY` | Registrado, pendiente de prueba |
 | Perplexity | `PERPLEXITY_API_KEY` | Registrado, pendiente de prueba |
-| Cohere | `COHERE_API_KEY` | Registrado, pendiente de prueba |
 | Grok (xAI) | `XAI_API_KEY` | Registrado, pendiente de prueba |
 | Hugging Face | `HUGGINGFACE_API_KEY` | Registrado, pendiente de prueba |
 | Meta AI | `LLAMA_API_KEY` | Registrado, pendiente de prueba |
@@ -119,7 +118,7 @@ Estas capas reducen el riesgo, pero no sustituyen tu criterio: lee cada cambio y
 
 ## Pendiente
 
-- **Probar los proveedores** que aún no tienen clave de prueba (OpenRouter, OpenAI, DeepSeek, Mistral, Perplexity, Cohere, Grok, Hugging Face, Meta AI y Anthropic).
+- **Probar los proveedores** que aún no tienen clave de prueba (OpenRouter, OpenAI, DeepSeek, Mistral, Perplexity, Grok, Hugging Face, Meta AI y Anthropic).
 - **Windows, macOS y Linux:** no están verificados.
 - **Respuestas más breves** en preguntas muy simples, en un ajuste futuro.
 

@@ -80,8 +80,6 @@ PROVEEDORES = [
      "modelo": "mistral-large-latest"},
     {"nombre": "Perplexity", "env": "PERPLEXITY_API_KEY", "url": "https://api.perplexity.ai/chat/completions",
      "modelo": "sonar"},
-    {"nombre": "Cohere", "env": "COHERE_API_KEY", "url": "https://api.cohere.ai/compatibility/v1/chat/completions",
-     "modelo": "command-a-03-2025"},
     {"nombre": "Grok (xAI)", "env": "XAI_API_KEY", "url": "https://api.x.ai/v1/chat/completions",
      "modelo": "grok-3-mini"},
     {"nombre": "Hugging Face", "env": "HUGGINGFACE_API_KEY", "url": "https://router.huggingface.co/v1/chat/completions",
