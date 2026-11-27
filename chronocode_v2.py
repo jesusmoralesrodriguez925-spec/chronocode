@@ -212,9 +212,16 @@ def rewind():
     return mensaje
 
 
+MAX_LECTURA = 8000   # caracteres máximos que se envían al modelo por archivo
+
+
 def read_file(path):
     try:
-        return Path(path).read_text(encoding="utf-8", errors="replace")[:MAX_SALIDA * 4]
+        texto = Path(path).read_text(encoding="utf-8", errors="replace")
+        if len(texto) > MAX_LECTURA:
+            return (texto[:MAX_LECTURA]
+                    + f"\n\n[... archivo recortado: se muestran {MAX_LECTURA} de {len(texto)} caracteres ...]")
+        return texto
     except OSError as e:
         return f"ERROR: {e}"
 
