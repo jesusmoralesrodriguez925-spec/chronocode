@@ -22,7 +22,7 @@ Si tienes una idea para una nueva función, abre un **Issue** con la etiqueta `e
 5. Haz **Push** a tu rama y abre un **Pull Request** en este repositorio.
 
 ## Estilo de Código
-- Mantén el código en un solo archivo (`chronocode.py`) si es posible.
+- Mantén el código en un solo archivo (`chronocode_v2.py`) si es posible.
 - Usa Python 3.10+.
 - Sigue las convenciones de PEP 8.
 - No agregues librerías externas a menos que sea estrictamente necesario.

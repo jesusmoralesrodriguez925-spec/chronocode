@@ -135,7 +135,7 @@ chronocode/
 ├── assets/
 │   └── chronocode.png     # logo del README
 ├── chronocode_v2.py       # agente (versión actual)
-├── chronocode.py          # versión anterior (respaldo)
+├── legacy/                # versión 1 (respaldo, no se usa)
 ├── .env.example           # plantilla de claves, sin valores reales
 ├── .gitignore
 ├── CONTRIBUTING.md
