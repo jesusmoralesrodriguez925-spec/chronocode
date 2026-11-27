@@ -375,7 +375,7 @@ def _llamar_anthropic(prov, mensajes):
     herramientas = [{"name": e["function"]["name"], "description": e["function"]["description"],
                      "input_schema": e["function"]["parameters"]} for e in ESQUEMAS]
     payload = {"model": prov["modelo"], "max_tokens": 4096, "system": system,
-               "messages": msgs, "tools": herramientas}
+               "messages": msgs, **({} if ESTADO_PLAN["sin_herramientas"] else {"tools": herramientas})}
     r = requests.post(prov["url"], headers=headers, json=payload, timeout=TIMEOUT)
     if r.status_code != 200:
         raise RuntimeError(f"HTTP {r.status_code}: {r.text[:150]}")
@@ -390,7 +390,10 @@ def _llamar_anthropic(prov, mensajes):
 def llamar_modelo_openai(prov, mensajes):
     headers = {"Authorization": f"Bearer {os.getenv(prov['env']).strip()}",
                "Content-Type": "application/json"}
-    payload = {"model": prov["modelo"], "messages": mensajes, "tools": ESQUEMAS, "tool_choice": "auto"}
+    payload = {"model": prov["modelo"], "messages": mensajes}
+    if not ESTADO_PLAN["sin_herramientas"]:
+        payload["tools"] = ESQUEMAS
+        payload["tool_choice"] = "auto"
     r = requests.post(prov["url"], headers=headers, json=payload, timeout=TIMEOUT)
     if r.status_code != 200:
         raise RuntimeError(f"HTTP {r.status_code}: {r.text[:150]}")
@@ -447,13 +450,15 @@ COMANDOS = [
     ("/run", "Ejecuta un comando de terminal"),
     ("/key", "Añade o cambia una API Key"),
     ("/proveedores", "Muestra los proveedores y cuáles tienen clave"),
-    ("/ver", "Muestra la última respuesta completa"),
+    ("/plan", "Propone un plan y lo ejecuta si lo apruebas"),
     ("/context", "Muestra cuánto espacio usa la conversación"),
     ("/compact", "Resume la conversación para liberar espacio"),
     ("/diff", "Muestra los cambios de git con colores"),
     ("/rewind", "Deshace el último cambio del agente"),
 ]
 ULTIMA = {"texto": ""}
+ESTADO_PLAN = {"sin_herramientas": False}
+CON_ARGUMENTO = {"/file", "/run", "/plan"}
 
 
 def _guardar_env(variable, valor):
@@ -540,11 +545,41 @@ def manejar_comando(linea, historial):
             marca = "sí" if pr["nombre"] in activos else "—"
             print(f"  {pr['nombre']:<14} clave: {marca:<3} modelo: {pr['modelo']}")
         return True
-    if cmd == "/ver":
-        if ULTIMA["texto"]:
-            console.print(Markdown(ULTIMA["texto"], code_theme="monokai"))
-        else:
-            print("Aún no hay ninguna respuesta.")
+    if cmd == "/plan":
+        if not arg:
+            print("Uso: /plan TAREA (ejemplo: /plan crea una página de inicio en HTML)")
+            return True
+        if not proveedores_activos():
+            print("No hay proveedores configurados.")
+            return True
+        pedir = ("Haz un plan breve y numerado para esta tarea: qué archivos crearías o editarías, "
+                 "qué cambiarías y cómo lo comprobarías. Solo describe el plan, no ejecutes nada.\n\n"
+                 "Tarea: " + arg)
+        try:
+            ESTADO_PLAN["sin_herramientas"] = True
+            try:
+                plan = responder([{"role": "user", "content": pedir}])
+            finally:
+                ESTADO_PLAN["sin_herramientas"] = False
+        except Exception as e:
+            print(f"No se pudo generar el plan: {type(e).__name__}: {str(e)[:120]}")
+            return True
+        if not plan or not plan.strip() or plan.startswith("Ningún proveedor respondió"):
+            print("No se pudo generar el plan. No se hizo ningún cambio.")
+            return True
+        console.print(Markdown(plan, code_theme="monokai"))
+        if not confirmar("¿Aprobar este plan y ejecutarlo?"):
+            print("Plan no aprobado. No se hizo ningún cambio.")
+            return True
+        historial.append({"role": "user",
+                          "content": f"Ejecuta este plan aprobado para la tarea: {arg}\n\n{plan}"})
+        try:
+            respuesta = responder(historial)
+        except Exception as e:
+            print(f"Error al ejecutar el plan: {type(e).__name__}: {str(e)[:120]}")
+            return True
+        ULTIMA["texto"] = respuesta
+        console.print(Markdown(respuesta, code_theme="monokai"))
         return True
     if cmd == "/context":
         usados = len(json.dumps(historial, ensure_ascii=False)) // 4
@@ -572,6 +607,26 @@ def manejar_comando(linea, historial):
         return True
     return False
 
+def _teclas_menu():
+    """Enter: si el menú está abierto, aplica el comando resaltado y lo ejecuta."""
+    from prompt_toolkit.key_binding import KeyBindings
+    teclas = KeyBindings()
+
+    @teclas.add("enter")
+    def _(event):
+        buf = event.current_buffer
+        estado = buf.complete_state
+        if estado is not None and estado.completions:
+            comp = estado.current_completion or estado.completions[0]
+            buf.apply_completion(comp)
+            buf.complete_state = None
+            if comp.text.strip() in CON_ARGUMENTO:
+                return            # el comando necesita argumento: no se envía
+        buf.validate_and_handle()
+
+    return teclas
+
+
 if PT_OK:
     class ComandosCompleter(Completer):
         """Al escribir "/" muestra el menú y lo filtra mientras escribes."""
@@ -582,9 +637,9 @@ if PT_OK:
                 return
             for cmd, desc in COMANDOS:
                 if cmd.startswith(texto):
-                    yield Completion(cmd, start_position=-len(texto), display_meta=desc)
+                    yield Completion(cmd + (" " if cmd in CON_ARGUMENTO else ""), start_position=-len(texto), display_meta=desc)
 
-    _sesion = PromptSession(completer=ComandosCompleter(), complete_while_typing=True)
+    _sesion = PromptSession(completer=ComandosCompleter(), complete_while_typing=True, key_bindings=_teclas_menu(), reserve_space_for_menu=12, mouse_support=True)
 
 
 def leer_linea():
