@@ -73,6 +73,9 @@ PROVEEDORES = [
      "modelo": "gemini-2.5-flash"},
     {"nombre": "DeepSeek", "env": "DEEPSEEK_API_KEY", "url": "https://api.deepseek.com/chat/completions",
      "modelo": "deepseek-chat"},
+    {"nombre": "Anthropic", "env": "ANTHROPIC_API_KEY",
+     "url": "https://api.anthropic.com/v1/messages",
+     "modelo": "claude-haiku-5-5", "tipo": "anthropic"},
     {"nombre": "Mistral AI", "env": "MISTRAL_API_KEY", "url": "https://api.mistral.ai/v1/chat/completions",
      "modelo": "mistral-large-latest"},
     {"nombre": "Perplexity", "env": "PERPLEXITY_API_KEY", "url": "https://api.perplexity.ai/chat/completions",
@@ -107,6 +110,7 @@ REGLAS = (
     "Eres ChronoCode, un asistente de programación. Responde en español. "
     "Sé breve: en preguntas simples responde en 2 a 4 frases, sin repetir código "
     "que ya hayas mostrado con una herramienta. "
+    "Dentro de tablas no pongas código: usa ejemplos cortos de máximo 20 caracteres. "
     "No ayudes a crear malware, robar cuentas o datos, atacar sistemas de terceros, hacer fraude "
     "ni nada ilegal: si la petición lo es, dilo y no uses herramientas. "
     "Para trabajar en archivos usa las herramientas directamente: no preguntes en texto si "
@@ -326,6 +330,66 @@ def proveedores_activos():
 
 
 def llamar_modelo(prov, mensajes):
+    """Devuelve el mensaje del asistente con el mismo formato para todos los proveedores."""
+    if prov.get("tipo") == "anthropic":
+        return _llamar_anthropic(prov, mensajes)
+    return llamar_modelo_openai(prov, mensajes)
+
+
+def _a_formato_anthropic(mensajes):
+    """Convierte el historial (formato OpenAI) al formato de mensajes de Anthropic."""
+    system = "\n\n".join(m["content"] for m in mensajes if m["role"] == "system")
+    salida = []
+    for m in mensajes:
+        if m["role"] == "system":
+            continue
+        if m["role"] == "assistant":
+            bloques = []
+            if m.get("content"):
+                bloques.append({"type": "text", "text": m["content"]})
+            for llamada in m.get("tool_calls") or []:
+                try:
+                    entrada = json.loads(llamada["function"].get("arguments") or "{}")
+                except json.JSONDecodeError:
+                    entrada = {}
+                bloques.append({"type": "tool_use", "id": llamada["id"],
+                                "name": llamada["function"]["name"], "input": entrada})
+            salida.append({"role": "assistant", "content": bloques or [{"type": "text", "text": "..."}]})
+        elif m["role"] == "tool":
+            bloque = {"type": "tool_result", "tool_use_id": m["tool_call_id"],
+                      "content": m.get("content") or ""}
+            ultimo = salida[-1] if salida else None
+            if (ultimo and ultimo["role"] == "user" and isinstance(ultimo["content"], list)
+                    and ultimo["content"] and ultimo["content"][0].get("type") == "tool_result"):
+                ultimo["content"].append(bloque)
+            else:
+                salida.append({"role": "user", "content": [bloque]})
+        else:
+            salida.append({"role": "user", "content": m["content"]})
+    return system, salida
+
+
+def _llamar_anthropic(prov, mensajes):
+    system, msgs = _a_formato_anthropic(mensajes)
+    headers = {"x-api-key": os.getenv(prov["env"]).strip(),
+               "anthropic-version": "2023-06-01",
+               "Content-Type": "application/json"}
+    herramientas = [{"name": e["function"]["name"], "description": e["function"]["description"],
+                     "input_schema": e["function"]["parameters"]} for e in ESQUEMAS]
+    payload = {"model": prov["modelo"], "max_tokens": 4096, "system": system,
+               "messages": msgs, "tools": herramientas}
+    r = requests.post(prov["url"], headers=headers, json=payload, timeout=TIMEOUT)
+    if r.status_code != 200:
+        raise RuntimeError(f"HTTP {r.status_code}: {r.text[:150]}")
+    bloques = r.json().get("content", [])
+    texto = "".join(b.get("text", "") for b in bloques if b.get("type") == "text")
+    llamadas = [{"id": b["id"], "type": "function",
+                 "function": {"name": b["name"], "arguments": json.dumps(b.get("input") or {})}}
+                for b in bloques if b.get("type") == "tool_use"]
+    return {"content": texto, "tool_calls": llamadas}
+
+
+def llamar_modelo_openai(prov, mensajes):
     headers = {"Authorization": f"Bearer {os.getenv(prov['env']).strip()}",
                "Content-Type": "application/json"}
     payload = {"model": prov["modelo"], "messages": mensajes, "tools": ESQUEMAS, "tool_choice": "auto"}
@@ -426,7 +490,9 @@ def _compactar(historial):
     provs = proveedores_activos()
     if not provs:
         return "No hay proveedores configurados."
-    prov = provs[0]
+    prov = next((x for x in provs if x.get("tipo") != "anthropic"), None)
+    if prov is None:
+        return "Para compactar hace falta un proveedor compatible con OpenAI."
     viejos = "\n".join(f"{m['role']}: {m.get('content') or ''}" for m in historial[:-6])
     prompt = ("Resume de forma concisa esta conversación: decisiones, archivos modificados y "
               "pendientes. Responde solo con el resumen.\n\n" + viejos)

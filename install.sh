@@ -5,10 +5,10 @@
 set -e
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SCRIPT="$DIR/chronocode_v2.py"
+SCRIPT="$DIR/chronocode.py"
 
 if [ ! -f "$SCRIPT" ]; then
-  echo "No encuentro chronocode_v2.py en $DIR"
+  echo "No encuentro chronocode.py en $DIR"
   exit 1
 fi
 
