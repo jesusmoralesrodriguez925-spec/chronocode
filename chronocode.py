@@ -288,8 +288,8 @@ def run_tests():
 
 
 HERRAMIENTAS = {
-    "read_file": read_file, "write_file": write_file, "edit_file": edit_file,
-    "run_command": run_command, "run_tests": run_tests,
+    "Read": read_file, "Write": write_file, "Edit": edit_file,
+    "Bash": run_command, "run_tests": run_tests,
 }
 
 
@@ -300,14 +300,14 @@ def _esquema(nombre, descripcion, props=None, requeridos=None):
 
 
 ESQUEMAS = [
-    _esquema("read_file", "Lee un archivo de texto.",
+    _esquema("Read", "Lee un archivo completo. Úsala cuando el usuario pida revisar o mostrar un archivo.",
              {"path": {"type": "string"}}, ["path"]),
-    _esquema("write_file", "Crea o reemplaza un archivo (el usuario debe aprobarlo).",
+    _esquema("Write", "Crea un archivo nuevo desde cero. No la uses para cambiar partes de un archivo existente.",
              {"path": {"type": "string"}, "content": {"type": "string"}}, ["path", "content"]),
-    _esquema("edit_file", "Reemplaza un texto exacto y único dentro de un archivo (el usuario debe aprobarlo).",
+    _esquema("Edit", "Cambia solo una parte de un archivo existente (por ejemplo un color o una línea con error). No borra lo demás.",
              {"path": {"type": "string"}, "old_string": {"type": "string"}, "new_string": {"type": "string"}},
              ["path", "old_string", "new_string"]),
-    _esquema("run_command", "Ejecuta un comando de Linux/Termux (el usuario debe aprobarlo).",
+    _esquema("Bash", "Ejecuta un comando de Termux como si fuera el usuario: instalar, correr un servidor, listar archivos o ver errores.",
              {"cmd": {"type": "string"}}, ["cmd"]),
     _esquema("run_tests", "Ejecuta las pruebas del proyecto. Úsala después de cambiar código."),
 ]
