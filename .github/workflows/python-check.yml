@@ -17,5 +17,5 @@ jobs:
         python-version: "3.11"
     - name: Check syntax
       run: |
-        python -m py_compile chronocode.py
+        python -m py_compile chronocode_v2.py
         echo "✅ Sintaxis correcta"
