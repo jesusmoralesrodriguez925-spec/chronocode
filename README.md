@@ -16,12 +16,13 @@
 
 ChronoCode lee tu proyecto, crea y edita archivos, ejecuta comandos y pruebas, y te pide confirmación antes de cada acción que modifique algo. Trae tu propia API Key (BYOK): tus claves y tu código solo se envían al proveedor de IA que elijas.
 
-> **Estado:** probado en Termux (Android) con Groq y Gemini. Los demás proveedores están registrados, pero solo se han probado con su clave real donde se indica. Windows, macOS y Linux no están verificados.
+> **Estado:** probado en Termux (Android) con Groq y Gemini. Los demás proveedores están registrados, pero aún no se han probado con clave real. Windows, macOS y Linux no están verificados.
 
 ## Qué hace
 
 - **Conversación con formato:** títulos, negritas, tablas y bloques de código con colores.
 - **Herramientas:** leer, buscar, crear y editar archivos; ejecutar comandos y pruebas del proyecto.
+- **Planes antes de editar:** con `/plan` el agente propone los pasos y no ejecuta nada hasta que apruebes.
 - **Confirmación obligatoria:** cada escritura o comando muestra lo que va a hacer y pide `[s/N]`. Por defecto, no.
 - **Copias de seguridad y deshacer:** la versión anterior de cada archivo se guarda antes de cambiarlo, y `/rewind` la restaura.
 - **Seguridad:** rutas limitadas a la carpeta de trabajo, denylist de comandos destructivos y rechazo de peticiones ilegales.
@@ -55,23 +56,23 @@ Edita `.env` y pon al menos una clave, por ejemplo `GROQ_API_KEY="gsk_..."`. Nun
 |---|---|---|
 | Groq | `GROQ_API_KEY` | Probado con herramientas |
 | Gemini | `GEMINI_API_KEY` | Probado con herramientas |
-| OpenRouter | `OPENROUTER_API_KEY` | Registrado, pendiente de prueba |
-| OpenAI | `OPENAI_API_KEY` | Registrado, pendiente de prueba |
-| DeepSeek | `DEEPSEEK_API_KEY` | Registrado, pendiente de prueba |
+| OpenRouter | `OPENROUTER_API_KEY` | Pendiente de prueba con clave |
+| OpenAI | `OPENAI_API_KEY` | Pendiente de prueba con clave |
+| DeepSeek | `DEEPSEEK_API_KEY` | Pendiente de prueba con clave |
 | Anthropic | `ANTHROPIC_API_KEY` | Conversión de herramientas probada; llamada real pendiente de clave |
-| Mistral AI | `MISTRAL_API_KEY` | Registrado, pendiente de prueba |
-| Perplexity | `PERPLEXITY_API_KEY` | Registrado, pendiente de prueba |
-| Grok (xAI) | `XAI_API_KEY` | Registrado, pendiente de prueba |
-| Hugging Face | `HUGGINGFACE_API_KEY` | Registrado, pendiente de prueba |
-| Meta AI | `LLAMA_API_KEY` | Registrado, pendiente de prueba |
+| Mistral AI | `MISTRAL_API_KEY` | Pendiente de prueba con clave |
+| Perplexity | `PERPLEXITY_API_KEY` | Pendiente de prueba con clave |
+| Grok (xAI) | `XAI_API_KEY` | Pendiente de prueba con clave |
+| Hugging Face | `HUGGINGFACE_API_KEY` | Pendiente de prueba con clave |
+| Meta AI | `LLAMA_API_KEY` | Pendiente de prueba con clave |
 
-El agente usa los proveedores en el orden de la tabla. Si uno falla, pasa al siguiente. Los planes gratuitos tienen límites: si ves `HTTP 429`, espera o usa otro proveedor.
+El agente usa los proveedores en el orden de la tabla. Si uno falla, pasa al siguiente. Los planes gratuitos tienen límites: si ves `HTTP 429`, espera o usa otro proveedor. Si ves `HTTP 403`, el proveedor bloqueó la conexión desde tu red.
 
 Puedes ver cuáles tienen clave con `/proveedores`, y añadir una clave con `/key`.
 
 ## Comandos
 
-Escribe `/` para ver el menú con filtrado en tiempo real.
+Escribe `/` para ver el menú. Al seguir escribiendo, se filtra. Con Enter ejecutas el comando resaltado, o lo completas si necesita un argumento.
 
 | Comando | Qué hace |
 |---|---|
@@ -80,15 +81,17 @@ Escribe `/` para ver el menú con filtrado en tiempo real.
 | `/exit` | Sale del agente |
 | `/file RUTA` | Carga un archivo en el contexto |
 | `/run CMD` | Ejecuta un comando de terminal (pide confirmación) |
+| `/plan TAREA` | Propone un plan sin ejecutar nada; solo si lo apruebas, lo lleva a cabo |
 | `/key` | Añade o cambia una API Key |
 | `/proveedores` | Muestra los proveedores y cuáles tienen clave |
-| `/ver` | Muestra la última respuesta completa |
 | `/context` | Muestra cuánto espacio usa la conversación |
 | `/compact` | Resume la conversación para liberar espacio |
 | `/diff` | Muestra los cambios de git con colores |
 | `/rewind` | Deshace el último cambio hecho por el agente |
 
 Cualquier otro texto se envía al agente. Por ejemplo: `crea un archivo prueba.txt con hola`.
+
+Usa `/plan` antes de cambios grandes: el agente describe qué archivos tocaría y cómo lo comprobaría, y tú decides si sigue.
 
 ## Herramientas del agente
 
@@ -120,7 +123,6 @@ Estas capas reducen el riesgo, pero no sustituyen tu criterio: lee cada cambio y
 
 - **Probar los proveedores** que aún no tienen clave de prueba (OpenRouter, OpenAI, DeepSeek, Mistral, Perplexity, Grok, Hugging Face, Meta AI y Anthropic).
 - **Windows, macOS y Linux:** no están verificados.
-- **Respuestas más breves** en preguntas muy simples, en un ajuste futuro.
 
 ## Versión anterior
 
