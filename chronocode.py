@@ -498,7 +498,7 @@ def responder(historial):
     provs = proveedores_activos()
     if not provs:
         return "No hay ninguna API Key en .env (por ejemplo GROQ_API_KEY=...)."
-    mensajes = [{"role": "system", "content": REGLAS}] + historial
+    mensajes = [{"role": "system", "content": REGLAS + memoria_para_prompt()}] + historial
     hechos = []
     for _ in range(MAX_PASOS):
         msg = None
@@ -548,10 +548,12 @@ COMANDOS = [
     ("/compact", "Resume la conversación para liberar espacio"),
     ("/diff", "Muestra los cambios de git con colores"),
     ("/rewind", "Deshace el último cambio del agente"),
+    ("/remember", "Guarda algo en tu memoria a largo plazo (Chrono.md)"),
+    ("/memory", "Muestra tu memoria a largo plazo"),
 ]
 ULTIMA = {"texto": ""}
 ESTADO_PLAN = {"sin_herramientas": False}
-CON_ARGUMENTO = {"/file", "/run", "/plan"}
+CON_ARGUMENTO = {"/file", "/run", "/plan", "/remember"}
 
 
 def _guardar_env(variable, valor):
@@ -696,6 +698,16 @@ def manejar_comando(linea, historial):
         else:
             console.print(Syntax(salida[:20000], "diff", theme="ansi_dark", word_wrap=True))
         return True
+    if cmd == "/remember":
+        if not arg:
+            print("Uso: /remember TEXTO (ejemplo: /remember mi lenguaje favorito es Python)")
+            return True
+        print(recordar(arg))
+        return True
+    if cmd == "/memory":
+        contenido = leer_memoria().strip()
+        print(contenido if contenido else "Aún no tienes memoria guardada. Usa /remember TEXTO.")
+        return True
     if cmd == "/rewind":
         print(rewind())
         return True
@@ -759,6 +771,36 @@ def mostrar_ayuda():
     for cmd, desc in COMANDOS:
         console.print(Text(f"  {cmd:<8} {desc}"))
     console.print(Text("Cualquier otro texto se envía al agente.", style="dim"))
+
+
+RUTA_MEMORIA = Path.home() / "Chrono.md"
+
+
+def leer_memoria():
+    """Devuelve el contenido de Chrono.md (vacío si no existe)."""
+    try:
+        return RUTA_MEMORIA.read_text(encoding="utf-8") if RUTA_MEMORIA.exists() else ""
+    except OSError:
+        return ""
+
+
+def memoria_para_prompt():
+    """Texto de memoria que se añade al sistema en cada conversación."""
+    texto = leer_memoria().strip()
+    if not texto:
+        return ""
+    return ("\n\nMemoria a largo plazo del usuario (Chrono.md). Úsala cuando sea relevante, "
+            "sin inventar nada que no esté aquí:\n" + texto[-4000:])
+
+
+def recordar(texto):
+    """Añade una línea con la fecha a Chrono.md; lo crea la primera vez."""
+    nuevo = not RUTA_MEMORIA.exists()
+    with RUTA_MEMORIA.open("a", encoding="utf-8") as f:
+        if nuevo:
+            f.write("# Chrono.md - memoria a largo plazo de ChronoCode\n\n")
+        f.write("- " + time.strftime("%Y-%m-%d %H:%M") + ": " + texto.strip() + "\n")
+    return f"Guardado en {RUTA_MEMORIA}"
 
 
 def _configuracion_inicial():
