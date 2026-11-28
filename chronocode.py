@@ -15,6 +15,8 @@ import subprocess
 from pathlib import Path
 
 import requests
+
+SESION_HTTP = requests.Session()
 from dotenv import load_dotenv
 from rich.align import Align
 from rich.console import Console
@@ -89,6 +91,7 @@ PROVEEDORES = [
      "modelo": "Llama-3.3-70B-Instruct"},
 ]
 
+MAX_MENSAJES_ENVIO = 30    # mensajes del historial que se envían al modelo
 MAX_PASOS = 10              # pasos de herramientas por petición
 EXTENSION_A_LENGUAJE = {
     ".py": "python", ".js": "javascript", ".ts": "typescript", ".jsx": "jsx", ".tsx": "tsx",
@@ -130,7 +133,8 @@ def lenguaje_de(path):
 
 
 MAX_SALIDA = 4000           # caracteres máximos devueltos por una herramienta
-TIMEOUT = 120
+TIMEOUT = 120    # segundos por petición (lectura)
+AVISO_LENTO = 30   # a partir de estos segundos se avisa que sigue trabajando
 
 # ---------------- Seguridad ----------------
 # Comandos que nunca se ejecutan
@@ -514,7 +518,10 @@ def responder(historial):
     provs = proveedores_activos()
     if not provs:
         return "No hay ninguna API Key en .env (por ejemplo GROQ_API_KEY=...)."
-    mensajes = [{"role": "system", "content": REGLAS + memoria_para_prompt()}] + historial
+    recientes = historial[-MAX_MENSAJES_ENVIO:]
+    while recientes and recientes[0]["role"] != "user":
+        recientes = recientes[1:]
+    mensajes = [{"role": "system", "content": REGLAS + memoria_para_prompt()}] + recientes
     hechos = []
     for _ in range(MAX_PASOS):
         msg = None
