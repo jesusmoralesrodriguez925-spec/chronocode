@@ -10,7 +10,6 @@ import json
 import os
 import re
 import time
-import re
 import shlex
 import subprocess
 from pathlib import Path
@@ -277,7 +276,8 @@ def write_file(path, content):
     ok, motivo = ruta_permitida(path)
     if not ok:
         return f"BLOQUEADO: {motivo}."
-    print(f"\n--- Escribir {path} ---\n{content[:1500]}\n")
+    console.print(Panel(Syntax(content[:1500], lenguaje_de(path), theme="monokai", line_numbers=True),
+                        title=f"Escribir: {path}", title_align="left", border_style="yellow"))
     if not confirmar(f"¿Guardar {path}?"):
         return "CANCELADO por el usuario."
     try:
@@ -300,7 +300,8 @@ def edit_file(path, old_string, new_string):
     veces = texto.count(old_string)
     if veces != 1:
         return f"ERROR: el texto aparece {veces} veces (debe aparecer exactamente 1)."
-    print(f"\n--- Editar {path} ---\n- {old_string[:300]}\n+ {new_string[:300]}\n")
+    console.print(Panel(Syntax(f"- {old_string[:300]}\n+ {new_string[:300]}", lenguaje_de(path), theme="monokai"),
+                        title=f"Editar: {path}", title_align="left", border_style="yellow"))
     if not confirmar(f"¿Aplicar el cambio en {path}?"):
         return "CANCELADO por el usuario."
     respaldar(path)
@@ -618,7 +619,8 @@ def manejar_comando(linea, historial):
             return True
         contenido = p.read_text(encoding="utf-8", errors="replace")[:MAX_SALIDA * 4]
         historial.append({"role": "user", "content": f"Archivo de contexto ({arg}):\n{contenido}"})
-        print(f"Archivo cargado en el contexto: {arg}")
+        console.print(Panel(Syntax(contenido[:1500], lenguaje_de(arg), theme="monokai", line_numbers=True),
+                        title=f"Archivo: {arg}", title_align="left", border_style="cyan"))
         return True
     if cmd == "/run":
         if not arg:
