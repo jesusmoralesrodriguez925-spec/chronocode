@@ -757,9 +757,12 @@ def main():
     while True:
         try:
             linea = leer_linea()
-        except (EOFError, KeyboardInterrupt):
+        except EOFError:
             print()
             break
+        except KeyboardInterrupt:
+            console.print(Text("Ctrl+C no sale del agente. Escribe /exit para salir.", style="yellow"))
+            continue
         if not linea:
             continue
         if linea in ("/exit", "salir"):
