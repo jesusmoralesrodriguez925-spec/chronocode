@@ -639,7 +639,7 @@ if PT_OK:
                 if cmd.startswith(texto):
                     yield Completion(cmd + (" " if cmd in CON_ARGUMENTO else ""), start_position=-len(texto), display_meta=desc)
 
-    _sesion = PromptSession(completer=ComandosCompleter(), complete_while_typing=True, key_bindings=_teclas_menu(), reserve_space_for_menu=12, mouse_support=True)
+    _sesion = PromptSession(completer=ComandosCompleter(), complete_while_typing=True, key_bindings=_teclas_menu())
 
 
 def leer_linea():
