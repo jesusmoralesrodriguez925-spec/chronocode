@@ -5,8 +5,10 @@ ChronoCode v2 - Núcleo: bucle agéntico con herramientas y BYOK. Solo Termux po
 Dependencias: requests, python-dotenv.
 """
 import getpass
+import glob as _glob
 import json
 import os
+import re
 import time
 import re
 import shlex
@@ -287,9 +289,52 @@ def run_tests():
     return "No encontré pruebas (package.json con 'test', test_*.py o carpeta tests/)."
 
 
+MAX_RESULTADOS = 200
+
+
+def Glob(pattern, root="."):
+    """Busca archivos que coincidan con un patrón (por ejemplo **/*.py)."""
+    rutas = sorted(_glob.glob(os.path.join(root, pattern), recursive=True))
+    rutas = [r for r in rutas if ruta_permitida(r)[0]]
+    if not rutas:
+        return "Sin coincidencias."
+    extra = "" if len(rutas) <= MAX_RESULTADOS else f"\n[... {len(rutas) - MAX_RESULTADOS} más ...]"
+    return "\n".join(rutas[:MAX_RESULTADOS]) + extra
+
+
+def Grep(pattern, path="."):
+    """Busca un texto (expresión regular) dentro de los archivos de una carpeta."""
+    try:
+        regex = re.compile(pattern)
+    except re.error as e:
+        return f"ERROR: expresión regular inválida: {e}"
+    base = Path(path).expanduser()
+    if not base.exists():
+        return f"ERROR: no existe {path}"
+    archivos = [base] if base.is_file() else base.rglob("*")
+    encontrados = []
+    for archivo in archivos:
+        if not archivo.is_file() or not ruta_permitida(str(archivo))[0]:
+            continue
+        if any(parte in {".git", "node_modules", "__pycache__", ".chronocode_backups"} for parte in archivo.parts):
+            continue
+        try:
+            if archivo.stat().st_size > 1_000_000:
+                continue
+            for n, linea in enumerate(archivo.read_text(encoding="utf-8", errors="ignore").splitlines(), 1):
+                if regex.search(linea):
+                    encontrados.append(f"{archivo}:{n}: {linea.strip()[:200]}")
+                    if len(encontrados) >= MAX_RESULTADOS:
+                        return "\n".join(encontrados) + "\n[... resultados truncados ...]"
+        except OSError:
+            continue
+    return "\n".join(encontrados) or "Sin coincidencias."
+
+
 HERRAMIENTAS = {
     "Read": read_file, "Write": write_file, "Edit": edit_file,
     "Bash": run_command, "run_tests": run_tests,
+    "Glob": Glob, "Grep": Grep,
 }
 
 
@@ -307,6 +352,10 @@ ESQUEMAS = [
     _esquema("Edit", "Cambia solo una parte de un archivo existente (por ejemplo un color o una línea con error). No borra lo demás.",
              {"path": {"type": "string"}, "old_string": {"type": "string"}, "new_string": {"type": "string"}},
              ["path", "old_string", "new_string"]),
+    _esquema("Glob", "Busca archivos por nombre o patrón, por ejemplo **/*.py. Úsala para encontrar archivos.",
+             {"pattern": {"type": "string"}, "root": {"type": "string"}}, ["pattern"]),
+    _esquema("Grep", "Busca un texto o expresión regular dentro de los archivos. Úsala para encontrar dónde aparece algo.",
+             {"pattern": {"type": "string"}, "path": {"type": "string"}}, ["pattern"]),
     _esquema("Bash", "Ejecuta un comando de Termux como si fuera el usuario: instalar, correr un servidor, listar archivos o ver errores.",
              {"cmd": {"type": "string"}}, ["cmd"]),
     _esquema("run_tests", "Ejecuta las pruebas del proyecto. Úsala después de cambiar código."),
