@@ -198,6 +198,22 @@ def confirmar(pregunta):
             spinner.start()
 
 
+def explicar_error(texto):
+    """Convierte un error técnico en un aviso corto y claro para el usuario."""
+    t = str(texto).lower()
+    if "401" in t or "403" in t or "invalid api key" in t or "unauthorized" in t or "api key" in t and "invalid" in t:
+        return "Tu API Key no es válida o no tiene permiso. Revísala con /key."
+    if "402" in t or "insufficient" in t or "quota" in t and "exceeded" in t:
+        return "Se acabó el saldo o la cuota de este proveedor. Prueba otro con /proveedores."
+    if "429" in t or "rate limit" in t or "too many requests" in t:
+        return "El proveedor pide un descanso (límite de uso). Espera un momento o cambia de proveedor."
+    if "timeout" in t or "timed out" in t:
+        return "La conexión tardó demasiado. Revisa tu red e inténtalo de nuevo."
+    if "connection" in t or "max retries" in t or "name or service" in t or "resolve" in t or "unreachable" in t:
+        return "Sin conexión a internet o al proveedor. Revisa tu red e inténtalo de nuevo."
+    return "Hubo un problema al hablar con el proveedor. Inténtalo de nuevo."
+
+
 def _leer_si_no(pregunta):
     try:
         return input(f"{pregunta} [s/N]: ").strip().lower() in ("s", "si", "sí", "y", "yes")
@@ -507,7 +523,7 @@ def responder(historial):
                 msg = llamar_modelo(prov, mensajes)
                 break
             except (requests.RequestException, RuntimeError, KeyError) as e:
-                print(f"[{prov['nombre']}] no disponible: {str(e)[:120]}. Pruebo el siguiente.")
+                print(f"[{prov['nombre']}] {explicar_error(e)} Pruebo el siguiente.")
         if msg is None:
             if hechos:
                 resumen = "Acciones completadas antes del fallo:\n" + "\n".join(hechos)
@@ -856,7 +872,9 @@ def main():
             continue
         if linea == "/clear":
             historial.clear()
-            print("Chat borrado.")
+            console.clear()
+            nombres = " > ".join(p["nombre"] for p in proveedores_activos()) or "ninguno"
+            mostrar_banner(nombres)
             continue
         if linea.startswith("/"):
             if not manejar_comando(linea, historial):
