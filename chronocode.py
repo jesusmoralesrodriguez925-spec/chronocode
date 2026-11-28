@@ -761,7 +761,38 @@ def mostrar_ayuda():
     console.print(Text("Cualquier otro texto se envía al agente.", style="dim"))
 
 
+def _configuracion_inicial():
+    """Si no hay ninguna API Key, la pide y la guarda en .env (sin que el usuario cree ni edite nada)."""
+    if proveedores_activos():
+        return
+    env = Path(__file__).resolve().parent / ".env"
+    print("Primera vez: necesitas una API Key para usar ChronoCode.")
+    print("Proveedores: " + ", ".join(pr["nombre"] for pr in PROVEEDORES))
+    while not proveedores_activos():
+        nombre = input("Escribe el nombre del proveedor (ej. Groq): ").strip()
+        prov = next((pr for pr in PROVEEDORES if pr["nombre"].lower() == nombre.lower()), None)
+        if prov is None:
+            print("Ese proveedor no está en la lista. Prueba otra vez.")
+            continue
+        clave = getpass.getpass(f"Pega tu clave de {prov['nombre']} (no se muestra): ").strip()
+        if not clave:
+            print("No escribiste ninguna clave.")
+            continue
+        lineas = env.read_text(encoding="utf-8").splitlines() if env.exists() else []
+        lineas = [l for l in lineas if not l.startswith(prov["env"] + "=")]
+        lineas.append(f'{prov["env"]}="{clave}"')
+        env.write_text("\n".join(lineas) + "\n", encoding="utf-8")
+        try:
+            os.chmod(env, 0o600)
+        except OSError:
+            pass
+        os.environ[prov["env"]] = clave
+        load_dotenv(env, override=True)
+        print(f"Clave de {prov['nombre']} guardada en .env. Listo.")
+
+
 def main():
+    _configuracion_inicial()
     nombres = " > ".join(p["nombre"] for p in proveedores_activos()) or "ninguno"
     mostrar_banner(nombres)
     historial = []
