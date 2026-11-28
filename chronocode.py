@@ -91,6 +91,45 @@ PROVEEDORES = [
 ]
 
 MAX_PASOS = 10              # pasos de herramientas por petición
+EXTENSION_A_LENGUAJE = {
+    ".py": "python", ".js": "javascript", ".ts": "typescript", ".jsx": "jsx", ".tsx": "tsx",
+    ".html": "html", ".css": "css", ".json": "json", ".md": "markdown", ".sh": "bash",
+    ".bash": "bash", ".yml": "yaml", ".yaml": "yaml", ".toml": "toml", ".ini": "ini",
+    ".java": "java", ".kt": "kotlin", ".c": "c", ".h": "c", ".cpp": "cpp", ".hpp": "cpp",
+    ".cs": "csharp", ".go": "go", ".rs": "rust", ".rb": "ruby", ".php": "php", ".swift": "swift",
+    ".sql": "sql", ".xml": "xml", ".lua": "lua", ".r": "r", ".dart": "dart", ".vue": "vue",
+}
+
+
+def detectar_lenguaje(codigo):
+    """Sin adivinar: un bloque sin lenguaje indicado se muestra como texto plano."""
+    return "text"
+
+
+def marcar_bloques_sin_lenguaje(texto):
+    """Normaliza los bloques de código para que se resalten bien y no queden marcas sueltas."""
+    texto = re.sub(r"^[ \t]+```", "```", texto, flags=re.M)
+    texto = re.sub(r"^[ \t]*```[ \t]*(\w+)[ \t]*$", lambda m: "```" + m.group(1).lower(), texto, flags=re.M)
+    texto = re.sub(r"^```text[ \t]*$", "```", texto, flags=re.M)
+
+    def reemplazo(m):
+        codigo = m.group(1)
+        lenguaje = m.group(0).split("\n", 1)[0][3:].strip()
+        if lenguaje in ("", "text"):
+            lenguaje = detectar_lenguaje(codigo)
+        return "```" + lenguaje + "\n" + codigo + "```"
+
+    texto = re.sub(r"```([\w+-]*)[ \t]*\n(.*?)```", lambda m: reemplazo(
+        type("M", (), {"group": lambda self, i: (m.group(0) if i == 0 else (m.group(2) if i == 1 else m.group(1)))})()
+    ), texto, flags=re.S)
+    return texto
+
+
+def lenguaje_de(path):
+    """Lenguaje para resaltar un archivo según su extensión (texto plano si no se conoce)."""
+    return EXTENSION_A_LENGUAJE.get(Path(path).suffix.lower(), "text")
+
+
 MAX_SALIDA = 4000           # caracteres máximos devueltos por una herramienta
 TIMEOUT = 120
 
@@ -108,6 +147,10 @@ TEMAS_NO_PERMITIDOS = (
 
 REGLAS = (
     "Eres ChronoCode, un asistente de programación. Responde en español. "
+    "Cuando muestres código, usa SIEMPRE bloques de Markdown con tres comillas invertidas al inicio "
+    "y al final, sin sangría. Indica SIEMPRE el lenguaje real del código (```go, ```php, ```python, ```bash, ```html...), "
+    "nunca lo dejes vacío ni pongas text para código. "
+    "Nunca escribas el código con sangría ni dejes una marca ``` sin cerrar. "
     "Sé breve: en preguntas simples responde en 2 a 4 frases, sin repetir código "
     "que ya hayas mostrado con una herramienta. "
     "Dentro de tablas no pongas código: usa ejemplos cortos de máximo 20 caracteres. "
@@ -628,7 +671,7 @@ def manejar_comando(linea, historial):
             print(f"Error al ejecutar el plan: {type(e).__name__}: {str(e)[:120]}")
             return True
         ULTIMA["texto"] = respuesta
-        console.print(Markdown(respuesta, code_theme="monokai"))
+        console.print(Markdown(marcar_bloques_sin_lenguaje(respuesta), code_theme="monokai"))
         return True
     if cmd == "/context":
         usados = len(json.dumps(historial, ensure_ascii=False)) // 4
@@ -753,7 +796,7 @@ def main():
         if respuesta is None:
             continue
         ULTIMA["texto"] = respuesta
-        console.print(Markdown(respuesta, code_theme="monokai"))
+        console.print(Markdown(marcar_bloques_sin_lenguaje(respuesta), code_theme="monokai"))
 
 
 if __name__ == "__main__":
