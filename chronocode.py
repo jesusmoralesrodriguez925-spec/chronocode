@@ -705,6 +705,17 @@ def _teclas_menu():
     """Enter: si el menú está abierto, aplica el comando resaltado y lo ejecuta."""
     from prompt_toolkit.key_binding import KeyBindings
     teclas = KeyBindings()
+    ESC_ULTIMO = {"t": 0.0}
+
+    @teclas.add("escape", eager=True)
+    def _esc(event):
+        """Esc: en el prompt, dos pulsaciones seguidas (menos de 1 s) salen del agente."""
+        ahora = time.monotonic()
+        if ahora - ESC_ULTIMO["t"] < 1.0 and not event.current_buffer.text:
+            event.app.exit(exception=EOFError())
+        else:
+            ESC_ULTIMO["t"] = ahora
+            event.current_buffer.reset()
 
     @teclas.add("enter")
     def _(event):
